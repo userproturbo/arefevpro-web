@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 47% 5%;
+  --foreground: 210 29% 96%;
+  --card: 222 24% 10%;
+  --muted: 223 23% 16%;
+  --muted-foreground: 216 14% 70%;
+  --border: 220 18% 20%;
+  --accent: 196 89% 58%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold tracking-display text-foreground;
+  }
+
+  p {
+    @apply leading-7 text-muted-foreground;
+  }
+
+  a {
+    @apply transition-colors;
+  }
+}
