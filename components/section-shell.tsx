@@ -146,14 +146,15 @@ export function SectionShell({ page, sections }: SectionShellProps) {
                   </button>
                 </div>
 
-                <video
-                  key={activeMedia.id}
-                  className="viewer-video"
-                  src={activeMedia.videoUrl}
-                  poster={activeMedia.thumbnailUrl ?? undefined}
-                  controls
-                  playsInline
-                />
+                <div key={activeMedia.id} className="viewer-stage is-video">
+                  <video
+                    className="viewer-video"
+                    src={activeMedia.videoUrl}
+                    poster={activeMedia.thumbnailUrl ?? undefined}
+                    controls
+                    playsInline
+                  />
+                </div>
               </div>
             ) : (
               <div className="viewer-panel">
@@ -172,13 +173,15 @@ export function SectionShell({ page, sections }: SectionShellProps) {
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  className="photo-stage"
-                  onClick={() => setLightboxOpen(true)}
-                >
-                  <img src={activeMedia.imageUrl} alt={activeMedia.title} className="viewer-image" />
-                </button>
+                <div key={activeMedia.id} className="viewer-stage is-photo">
+                  <button
+                    type="button"
+                    className="photo-stage"
+                    onClick={() => setLightboxOpen(true)}
+                  >
+                    <img src={activeMedia.imageUrl} alt={activeMedia.title} className="viewer-image" />
+                  </button>
+                </div>
               </div>
             )
           ) : (

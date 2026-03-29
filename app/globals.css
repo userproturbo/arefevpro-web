@@ -4,10 +4,12 @@
   --panel: rgba(18, 18, 18, 0.88);
   --panel-strong: rgba(24, 24, 24, 0.96);
   --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(214, 185, 140, 0.24);
   --text: #f3eee7;
   --muted: rgba(243, 238, 231, 0.68);
   --accent: #d6b98c;
   --accent-soft: rgba(214, 185, 140, 0.16);
+  --glow-soft: 0 12px 36px rgba(214, 185, 140, 0.12);
   --shadow: 0 20px 80px rgba(0, 0, 0, 0.45);
   --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
   --sans: "Avenir Next", "Segoe UI", sans-serif;
@@ -183,7 +185,12 @@ video {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.95rem 1.35rem;
-  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  transition:
+    background 220ms ease,
+    border-color 220ms ease,
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    color 220ms ease;
 }
 
 .primary-link,
@@ -202,7 +209,15 @@ video {
 .secondary-link:hover,
 .viewer-action:hover,
 .lightbox-close:hover {
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.012);
+  box-shadow: var(--glow-soft);
+}
+
+.primary-link:active,
+.secondary-link:active,
+.viewer-action:active,
+.lightbox-close:active {
+  transform: scale(0.995);
 }
 
 .home-caption {
@@ -314,7 +329,12 @@ video {
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+  transition:
+    background 220ms ease,
+    border-color 220ms ease,
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    opacity 220ms ease;
 }
 
 .album-card {
@@ -323,6 +343,18 @@ video {
   gap: 0.9rem;
   padding: 0.75rem;
   border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+}
+
+.album-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(214, 185, 140, 0.12), transparent 55%);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
 }
 
 .album-card.is-active,
@@ -332,6 +364,24 @@ video {
 .photo-stage:hover {
   border-color: rgba(214, 185, 140, 0.35);
   background: rgba(214, 185, 140, 0.08);
+}
+
+.album-card:hover {
+  transform: translateY(-2px) scale(1.012);
+  box-shadow: var(--glow-soft);
+}
+
+.album-card:hover::after,
+.album-card.is-active::after {
+  opacity: 1;
+}
+
+.album-card.is-active {
+  border-color: var(--line-strong);
+  box-shadow:
+    inset 0 0 0 1px rgba(214, 185, 140, 0.06),
+    0 16px 42px rgba(0, 0, 0, 0.32),
+    var(--glow-soft);
 }
 
 .album-card-image,
@@ -349,6 +399,17 @@ video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 420ms ease, filter 300ms ease;
+}
+
+.album-card:hover .album-card-image img,
+.media-row:hover .media-row-thumb img {
+  transform: scale(1.04);
+}
+
+.album-card.is-active .album-card-image img {
+  transform: scale(1.03);
+  filter: saturate(1.05);
 }
 
 .album-card-fallback,
@@ -372,12 +433,22 @@ video {
 .album-card-copy span,
 .media-row-copy span {
   font-size: 1rem;
+  transition: color 220ms ease, transform 220ms ease;
 }
 
 .album-card-copy small,
 .media-row-copy small,
 .media-list-header small {
   color: var(--muted);
+}
+
+.album-card.is-active .album-card-copy span {
+  color: #fff7ec;
+  transform: translateX(2px);
+}
+
+.album-card.is-active .album-card-copy small {
+  color: rgba(243, 238, 231, 0.86);
 }
 
 .media-list-header,
@@ -400,6 +471,41 @@ video {
   padding: 0.6rem;
   border-radius: 18px;
   margin-bottom: 0.65rem;
+  position: relative;
+}
+
+.media-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14%;
+  bottom: 14%;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(214, 185, 140, 0), rgba(214, 185, 140, 0.9), rgba(214, 185, 140, 0));
+  opacity: 0;
+  transform: scaleY(0.7);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.media-row:hover {
+  transform: translateX(3px);
+}
+
+.media-row.is-active {
+  border-color: rgba(214, 185, 140, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(214, 185, 140, 0.05);
+}
+
+.media-row:hover::before,
+.media-row.is-active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.media-row.is-active .media-row-copy span,
+.media-row:hover .media-row-copy span {
+  color: #fff7ec;
 }
 
 .media-empty {
@@ -421,6 +527,12 @@ video {
   background: linear-gradient(180deg, rgba(19, 19, 19, 0.84) 0%, rgba(8, 8, 8, 0.96) 100%);
 }
 
+.viewer-stage {
+  flex: 1;
+  min-height: 0;
+  animation: viewer-media-enter 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .viewer-video,
 .photo-stage {
   flex: 1;
@@ -433,10 +545,12 @@ video {
 .viewer-video {
   width: 100%;
   object-fit: contain;
+  animation: viewer-zoom 900ms ease both;
 }
 
 .photo-stage {
   padding: 0;
+  animation: viewer-zoom 900ms ease both;
 }
 
 .viewer-image {
@@ -476,6 +590,170 @@ video {
   margin: 1.5rem;
 }
 
+.admin-page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.admin-header {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 0 0.5rem;
+  animation: fade-up 520ms ease both;
+}
+
+.admin-header h1,
+.admin-panel-head h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 500;
+}
+
+.admin-header h1 {
+  font-size: clamp(2.6rem, 4vw, 4.2rem);
+}
+
+.admin-copy,
+.admin-panel-head p,
+.admin-feedback,
+.admin-album-row p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-panel-card,
+.admin-list-card {
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.admin-panel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.2rem;
+}
+
+.admin-list-card {
+  padding: 1.2rem;
+}
+
+.admin-panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.admin-field span {
+  color: rgba(243, 238, 231, 0.88);
+  font-size: 0.9rem;
+}
+
+.admin-field input,
+.admin-field select,
+.admin-field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  padding: 0.9rem 1rem;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.admin-field input:focus,
+.admin-field select:focus,
+.admin-field textarea:focus {
+  border-color: var(--line-strong);
+  box-shadow: var(--glow-soft);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.admin-field textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+.admin-submit {
+  align-self: flex-start;
+}
+
+.admin-submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.admin-feedback {
+  margin: 0;
+  min-height: 1.5rem;
+}
+
+.admin-album-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.admin-album-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.025);
+  transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.admin-album-row:hover {
+  border-color: rgba(214, 185, 140, 0.28);
+  background: rgba(214, 185, 140, 0.06);
+  transform: translateY(-1px);
+}
+
+.admin-album-row strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.admin-album-row p {
+  margin: 0.18rem 0 0;
+  font-size: 0.9rem;
+}
+
+.admin-album-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+.admin-album-meta span {
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 @keyframes fade-up {
   from {
     opacity: 0;
@@ -495,6 +773,30 @@ video {
 
   to {
     opacity: 1;
+  }
+}
+
+@keyframes viewer-media-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes viewer-zoom {
+  from {
+    opacity: 0.82;
+    transform: scale(1.018);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -518,5 +820,18 @@ video {
   .viewer-panel,
   .viewer-empty {
     min-height: auto;
+  }
+
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-album-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-album-meta {
+    justify-content: flex-start;
   }
 }
