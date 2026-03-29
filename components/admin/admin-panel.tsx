@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AlbumCard } from "@/lib/services/albums";
 import type { SectionSummary } from "@/lib/services/sections";
 
@@ -21,6 +21,8 @@ type UploadFormState = {
   title: string;
 };
 
+type UploadStatus = "idle" | "uploading" | "success" | "error";
+
 export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
   const [albums, setAlbums] = useState(initialAlbums);
   const [albumForm, setAlbumForm] = useState<AlbumFormState>({
@@ -34,10 +36,15 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     title: "",
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [albumMessage, setAlbumMessage] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [creatingAlbum, setCreatingAlbum] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const editableSections = sections.filter(
     (section) => section.slug === "video" || section.slug === "photo",
@@ -51,6 +58,20 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
       })),
     [albums],
   );
+
+  useEffect(() => {
+    if (!selectedFile || !selectedFile.type.startsWith("image/")) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(nextPreviewUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextPreviewUrl);
+    };
+  }, [selectedFile]);
 
   async function handleCreateAlbum(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,7 +122,12 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
   async function handleUploadMedia(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (uploadingMedia) {
+      return;
+    }
+
     if (!selectedFile) {
+      setUploadStatus("error");
       setUploadMessage("Choose a file to upload");
       return;
     }
@@ -109,6 +135,7 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     const selectedAlbum = albums.find((album) => album.id === uploadForm.albumId);
 
     if (!selectedAlbum) {
+      setUploadStatus("error");
       setUploadMessage("Choose an album");
       return;
     }
@@ -116,11 +143,13 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     const kind = getMediaKind(selectedFile);
 
     if (!kind) {
+      setUploadStatus("error");
       setUploadMessage("Only MP4, WEBM, JPEG, and PNG files are supported");
       return;
     }
 
     if (selectedAlbum.sectionSlug !== kind.sectionSlug) {
+      setUploadStatus("error");
       setUploadMessage(
         `${kind.label} files can only be uploaded to ${kind.sectionSlug.toUpperCase()} albums`,
       );
@@ -128,6 +157,8 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     }
 
     setUploadingMedia(true);
+    setUploadProgress(0);
+    setUploadStatus("uploading");
     setUploadMessage(null);
 
     try {
@@ -156,16 +187,11 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
         );
       }
 
-      await fetch(uploadPrepPayload.uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": selectedFile.type,
-        },
-        body: selectedFile,
-      }).then((response) => {
-        if (!response.ok) {
-          throw new Error("Upload to storage failed");
-        }
+      await uploadFileWithProgress({
+        file: selectedFile,
+        contentType: selectedFile.type,
+        uploadUrl: uploadPrepPayload.uploadUrl,
+        onProgress: (progress) => setUploadProgress(progress),
       });
 
       const metadata = await readFileMetadata(selectedFile, kind.value);
@@ -208,17 +234,38 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
             : album,
         ),
       );
-      setSelectedFile(null);
       setUploadForm((current) => ({
         ...current,
         title: "",
       }));
+      setUploadStatus("success");
+      setUploadProgress(100);
       setUploadMessage(`Uploaded to ${selectedAlbum.title}`);
     } catch (error) {
+      setUploadStatus("error");
       setUploadMessage(error instanceof Error ? error.message : "Failed to upload media");
     } finally {
       setUploadingMedia(false);
     }
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    setDragActive(false);
+
+    if (uploadingMedia) {
+      return;
+    }
+
+    const file = event.dataTransfer.files?.[0] ?? null;
+    setSelectedUploadFile(file);
+  }
+
+  function setSelectedUploadFile(file: File | null) {
+    setSelectedFile(file);
+    setUploadStatus("idle");
+    setUploadProgress(0);
+    setUploadMessage(null);
   }
 
   return (
@@ -306,14 +353,60 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
             <p>Uses the existing presigned upload flow, then creates the database record.</p>
           </div>
 
-          <label className="admin-field">
+          <div className="admin-field">
             <span>File</span>
             <input
+              ref={fileInputRef}
+              className="admin-file-input"
               type="file"
               accept="video/mp4,video/webm,image/jpeg,image/png"
-              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => setSelectedUploadFile(event.target.files?.[0] ?? null)}
+              disabled={uploadingMedia}
             />
-          </label>
+            <button
+              type="button"
+              className={`upload-dropzone is-${uploadStatus} ${dragActive ? "is-dragging" : ""}`}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!uploadingMedia) {
+                  setDragActive(true);
+                }
+              }}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                if (!uploadingMedia) {
+                  setDragActive(true);
+                }
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                setDragActive(false);
+              }}
+              onDrop={handleDrop}
+              disabled={uploadingMedia}
+            >
+              <div className="upload-dropzone-copy">
+                <strong>Drag and drop a file</strong>
+                <span>or click to browse</span>
+              </div>
+
+              {selectedFile ? (
+                <div className="upload-preview">
+                  {previewUrl ? (
+                    <img src={previewUrl} alt={selectedFile.name} className="upload-preview-image" />
+                  ) : (
+                    <div className="upload-preview-video">VID</div>
+                  )}
+
+                  <div className="upload-preview-copy">
+                    <strong>{selectedFile.name}</strong>
+                    <span>{formatFileSize(selectedFile.size)}</span>
+                  </div>
+                </div>
+              ) : null}
+            </button>
+          </div>
 
           <label className="admin-field">
             <span>Album</span>
@@ -322,6 +415,7 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
               onChange={(event) =>
                 setUploadForm((current) => ({ ...current, albumId: event.target.value }))
               }
+              disabled={uploadingMedia}
             >
               {albumOptions.map((album) => (
                 <option key={album.id} value={album.id}>
@@ -339,8 +433,22 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
                 setUploadForm((current) => ({ ...current, title: event.target.value }))
               }
               placeholder="Optional title"
+              disabled={uploadingMedia}
             />
           </label>
+
+          <div className="upload-status-block">
+            <div className="upload-status-row">
+              <span className={`upload-status-pill is-${uploadStatus}`}>{uploadStatus}</span>
+              <span>{uploadProgress}%</span>
+            </div>
+            <div className="upload-progress-track" aria-hidden="true">
+              <div
+                className={`upload-progress-bar is-${uploadStatus}`}
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
 
           <button type="submit" className="primary-link admin-submit" disabled={uploadingMedia}>
             {uploadingMedia ? "Uploading..." : "Upload Media"}
@@ -445,4 +553,46 @@ function loadVideo(src: string): Promise<HTMLVideoElement> {
     video.onerror = () => reject(new Error("Failed to read video metadata"));
     video.src = src;
   });
+}
+
+function uploadFileWithProgress(input: {
+  uploadUrl: string;
+  file: File;
+  contentType: string;
+  onProgress: (progress: number) => void;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", input.uploadUrl);
+    xhr.setRequestHeader("Content-Type", input.contentType);
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) {
+        return;
+      }
+
+      input.onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        input.onProgress(100);
+        resolve();
+        return;
+      }
+
+      reject(new Error("Upload to storage failed"));
+    };
+
+    xhr.onerror = () => reject(new Error("Upload to storage failed"));
+    xhr.send(input.file);
+  });
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
