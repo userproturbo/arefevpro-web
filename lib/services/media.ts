@@ -39,6 +39,7 @@ export type CreateMediaInput = MediaMetadataInput & {
   kind: MediaKindInput;
   albumId: string;
   title: string;
+  isPublished?: boolean;
   thumbnail?: Omit<MediaMetadataInput, "durationSec"> & {
     durationSec?: NullableNumber;
   };
@@ -87,7 +88,7 @@ export async function createMedia(rawInput: unknown): Promise<CreatedMediaResult
     return await prisma.$transaction(async (tx) => {
       const album = await tx.album.findUnique({
         where: { id: input.albumId },
-        select: { id: true, title: true, slug: true },
+        select: { id: true, title: true, slug: true, coverId: true },
       });
 
       if (!album) {
@@ -103,7 +104,7 @@ export async function createMedia(rawInput: unknown): Promise<CreatedMediaResult
         mimeType: input.mimeType,
         albumId: input.kind === "IMAGE" ? album.id : null,
         order: 0,
-        isPublished: false,
+        isPublished: input.isPublished ?? false,
         sizeBytes: input.sizeBytes,
         width: input.width,
         height: input.height,
@@ -112,6 +113,16 @@ export async function createMedia(rawInput: unknown): Promise<CreatedMediaResult
       const mediaFile = mediaFileResult.mediaFile;
 
       if (input.kind !== "VIDEO") {
+        if (input.isPublished && !album.coverId) {
+          await tx.album.update({
+            where: { id: album.id },
+            data: {
+              coverId: mediaFile.id,
+              isPublished: true,
+            },
+          });
+        }
+
         const result = {
           mediaFile,
           video: null,
@@ -172,6 +183,7 @@ export async function createMedia(rawInput: unknown): Promise<CreatedMediaResult
           title: input.title,
           videoFileId: mediaFile.id,
           thumbnailId: thumbnail?.id ?? null,
+          isPublished: input.isPublished ?? false,
           storageKey: input.storageKey,
         }));
 
@@ -235,6 +247,7 @@ export function parseCreateMediaInput(rawInput: unknown): CreateMediaInput {
   });
   const albumId = parseRequiredString(rawInput.albumId, "albumId");
   const title = parseOptionalString(rawInput.title, "title") ?? deriveTitleFromStorageKey(storageKey);
+  const isPublished = parseOptionalBoolean(rawInput.isPublished, "isPublished");
 
   validateMimeType(kind, mimeType);
   validateFileSize(sizeBytes);
@@ -254,6 +267,7 @@ export function parseCreateMediaInput(rawInput: unknown): CreateMediaInput {
     durationSec,
     albumId,
     title,
+    isPublished,
     thumbnail,
   };
 }
@@ -357,6 +371,7 @@ async function createVideoWithUniqueSlug(
     title: string;
     videoFileId: string;
     thumbnailId: string | null;
+    isPublished: boolean;
     storageKey: string;
   },
 ): Promise<CreatedVideo> {
@@ -374,6 +389,7 @@ async function createVideoWithUniqueSlug(
           albumId: input.albumId,
           videoFileId: input.videoFileId,
           thumbnailId: input.thumbnailId,
+          isPublished: input.isPublished,
         },
         include: {
           album: {
@@ -448,6 +464,18 @@ function parseOptionalString(value: unknown, fieldName: string): string | undefi
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function parseOptionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value == null) {
+    return undefined;
+  }
+
+  if (typeof value !== "boolean") {
+    throw new MediaServiceError(`${fieldName} must be a boolean`, 400);
+  }
+
+  return value;
 }
 
 function parseRequiredInteger(

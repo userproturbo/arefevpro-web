@@ -1,11 +1,13 @@
 import { Prisma, SectionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { generateUniqueAlbumSlug } from "@/lib/services/slugs";
+import { generateUniqueAlbumSlug, slugify } from "@/lib/services/slugs";
 
 export type CreateAlbumInput = {
   sectionSlug: string;
   title: string;
+  slug?: string;
   description?: string;
+  isPublished?: boolean;
 };
 
 export type AlbumCard = {
@@ -65,7 +67,9 @@ export async function createAlbum(rawInput: unknown): Promise<AlbumCard> {
     throw new AlbumServiceError("Section not found", 404);
   }
 
-  const slug = await generateUniqueAlbumSlug(input.title);
+  const slug = input.slug
+    ? await ensureAlbumSlugAvailable(input.slug)
+    : await generateUniqueAlbumSlug(input.title);
 
   try {
     const album = await prisma.album.create({
@@ -74,7 +78,7 @@ export async function createAlbum(rawInput: unknown): Promise<AlbumCard> {
         slug,
         description: input.description,
         sectionId: section.id,
-        isPublished: false,
+        isPublished: input.isPublished ?? false,
       },
       include: {
         section: {
@@ -169,6 +173,53 @@ export async function getAlbumBySlug(slug: string): Promise<AlbumCard | null> {
     itemCount: album._count.videos + album._count.mediaFiles,
     sectionSlug: album.section.slug,
   };
+}
+
+export async function listAllAlbums(): Promise<AlbumCard[]> {
+  const albums = await prisma.album.findMany({
+    orderBy: [
+      {
+        section: {
+          order: "asc",
+        },
+      },
+      { order: "asc" },
+      { createdAt: "desc" },
+    ],
+    include: {
+      section: {
+        select: {
+          slug: true,
+        },
+      },
+      cover: {
+        select: {
+          publicUrl: true,
+        },
+      },
+      _count: {
+        select: {
+          videos: true,
+          mediaFiles: {
+            where: {
+              kind: "IMAGE",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return albums.map((album) => ({
+    id: album.id,
+    title: album.title,
+    slug: album.slug,
+    description: album.description,
+    isPublished: album.isPublished,
+    coverUrl: album.cover?.publicUrl ?? null,
+    itemCount: album._count.videos + album._count.mediaFiles,
+    sectionSlug: album.section.slug,
+  }));
 }
 
 export async function getAlbumVideos(slug: string): Promise<VideoListItem[]> {
@@ -276,12 +327,16 @@ function parseCreateAlbumInput(rawInput: unknown): CreateAlbumInput {
 
   const sectionSlug = parseRequiredString(rawInput.sectionSlug, "sectionSlug");
   const title = parseRequiredString(rawInput.title, "title");
+  const slug = parseOptionalString(rawInput.slug, "slug");
   const description = parseOptionalString(rawInput.description, "description");
+  const isPublished = parseOptionalBoolean(rawInput.isPublished, "isPublished");
 
   return {
     sectionSlug,
     title,
+    slug,
     description,
+    isPublished,
   };
 }
 
@@ -304,6 +359,37 @@ function parseOptionalString(value: unknown, fieldName: string): string | undefi
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function parseOptionalBoolean(value: unknown, fieldName: string): boolean | undefined {
+  if (value == null) {
+    return undefined;
+  }
+
+  if (typeof value !== "boolean") {
+    throw new AlbumServiceError(`${fieldName} must be a boolean`, 400);
+  }
+
+  return value;
+}
+
+async function ensureAlbumSlugAvailable(value: string): Promise<string> {
+  const normalizedSlug = slugify(value);
+
+  if (!normalizedSlug) {
+    throw new AlbumServiceError("slug is invalid", 400);
+  }
+
+  const existingAlbum = await prisma.album.findUnique({
+    where: { slug: normalizedSlug },
+    select: { id: true },
+  });
+
+  if (existingAlbum) {
+    throw new AlbumServiceError("Album slug already exists", 409);
+  }
+
+  return normalizedSlug;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
