@@ -23,6 +23,18 @@ type UploadFormState = {
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
+const uploadStatusLabels: Record<UploadStatus, string> = {
+  idle: "Ожидание",
+  uploading: "Загрузка",
+  success: "Успешно",
+  error: "Ошибка",
+};
+
+const sectionLabels: Record<string, string> = {
+  video: "Видео",
+  photo: "Фото",
+};
+
 export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
   const [albums, setAlbums] = useState(initialAlbums);
   const [albumForm, setAlbumForm] = useState<AlbumFormState>({
@@ -36,15 +48,22 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     title: "",
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFileUrl, setSelectedFileUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [lastCreatedMedia, setLastCreatedMedia] = useState<{
+    kind: "VIDEO" | "IMAGE";
+    title: string;
+    publicUrl: string;
+  } | null>(null);
   const [albumMessage, setAlbumMessage] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [creatingAlbum, setCreatingAlbum] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const objectUrlsRef = useRef<string[]>([]);
 
   const editableSections = sections.filter(
     (section) => section.slug === "video" || section.slug === "photo",
@@ -60,18 +79,20 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
   );
 
   useEffect(() => {
-    if (!selectedFile || !selectedFile.type.startsWith("image/")) {
+    if (!selectedFile || !selectedFileUrl || !selectedFile.type.startsWith("image/")) {
       setPreviewUrl(null);
       return;
     }
 
-    const nextPreviewUrl = URL.createObjectURL(selectedFile);
-    setPreviewUrl(nextPreviewUrl);
+    setPreviewUrl(selectedFileUrl);
+  }, [selectedFile, selectedFileUrl]);
 
-    return () => {
-      URL.revokeObjectURL(nextPreviewUrl);
-    };
-  }, [selectedFile]);
+  useEffect(
+    () => () => {
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    },
+    [],
+  );
 
   async function handleCreateAlbum(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,7 +117,9 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
       const payload = (await response.json()) as AlbumCard | { error?: string };
 
       if (!response.ok || "error" in payload) {
-        throw new Error(("error" in payload && payload.error) || "Failed to create album");
+        throw new Error(
+          translateAdminError(("error" in payload && payload.error) || "Не удалось создать альбом"),
+        );
       }
 
       const createdAlbum = payload as AlbumCard;
@@ -111,9 +134,9 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
         section: albumForm.section,
         description: "",
       });
-      setAlbumMessage(`Album created: ${createdAlbum.title}`);
+      setAlbumMessage(`Альбом создан: ${createdAlbum.title}`);
     } catch (error) {
-      setAlbumMessage(error instanceof Error ? error.message : "Failed to create album");
+      setAlbumMessage(error instanceof Error ? error.message : "Не удалось создать альбом");
     } finally {
       setCreatingAlbum(false);
     }
@@ -128,7 +151,13 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
 
     if (!selectedFile) {
       setUploadStatus("error");
-      setUploadMessage("Choose a file to upload");
+      setUploadMessage("Выберите файл для загрузки");
+      return;
+    }
+
+    if (!selectedFileUrl) {
+      setUploadStatus("error");
+      setUploadMessage("Не удалось подготовить локальный preview URL");
       return;
     }
 
@@ -136,7 +165,7 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
 
     if (!selectedAlbum) {
       setUploadStatus("error");
-      setUploadMessage("Choose an album");
+      setUploadMessage("Выберите альбом");
       return;
     }
 
@@ -144,14 +173,14 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
 
     if (!kind) {
       setUploadStatus("error");
-      setUploadMessage("Only MP4, WEBM, JPEG, and PNG files are supported");
+      setUploadMessage("Поддерживаются только файлы MP4, WEBM, JPEG и PNG");
       return;
     }
 
     if (selectedAlbum.sectionSlug !== kind.sectionSlug) {
       setUploadStatus("error");
       setUploadMessage(
-        `${kind.label} files can only be uploaded to ${kind.sectionSlug.toUpperCase()} albums`,
+        `${kind.label} можно загружать только в альбомы раздела ${kind.sectionSlug.toUpperCase()}`,
       );
       return;
     }
@@ -162,35 +191,8 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     setUploadMessage(null);
 
     try {
-      const uploadPrepResponse = await fetch("/api/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fileName: selectedFile.name,
-          fileType: selectedFile.type,
-        }),
-      });
-
-      const uploadPrepPayload = (await uploadPrepResponse.json()) as
-        | {
-            uploadUrl: string;
-            publicUrl: string;
-            key: string;
-          }
-        | { error?: string };
-
-      if (!uploadPrepResponse.ok || !("uploadUrl" in uploadPrepPayload)) {
-        throw new Error(
-          ("error" in uploadPrepPayload && uploadPrepPayload.error) || "Failed to prepare upload",
-        );
-      }
-
-      await uploadFileWithProgress({
+      const mockedUpload = await mockUploadWithProgress({
         file: selectedFile,
-        contentType: selectedFile.type,
-        uploadUrl: uploadPrepPayload.uploadUrl,
         onProgress: (progress) => setUploadProgress(progress),
       });
 
@@ -203,8 +205,8 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
         },
         body: JSON.stringify({
           kind: kind.value,
-          storageKey: uploadPrepPayload.key,
-          publicUrl: uploadPrepPayload.publicUrl,
+          storageKey: mockedUpload.storageKey,
+          publicUrl: selectedFileUrl,
           mimeType: selectedFile.type,
           sizeBytes: selectedFile.size,
           width: metadata.width,
@@ -224,7 +226,9 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
           };
 
       if (!mediaCreateResponse.ok || "error" in mediaPayload) {
-        throw new Error(("error" in mediaPayload && mediaPayload.error) || "Failed to create media");
+        throw new Error(
+          translateAdminError(("error" in mediaPayload && mediaPayload.error) || "Не удалось создать файл"),
+        );
       }
 
       setAlbums((current) =>
@@ -238,12 +242,17 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
         ...current,
         title: "",
       }));
+      setLastCreatedMedia({
+        kind: kind.value,
+        title: uploadForm.title || selectedFile.name.replace(/\.[^.]+$/, ""),
+        publicUrl: selectedFileUrl,
+      });
       setUploadStatus("success");
       setUploadProgress(100);
-      setUploadMessage(`Uploaded to ${selectedAlbum.title}`);
+      setUploadMessage(`Файл добавлен в альбом «${selectedAlbum.title}»`);
     } catch (error) {
       setUploadStatus("error");
-      setUploadMessage(error instanceof Error ? error.message : "Failed to upload media");
+      setUploadMessage(error instanceof Error ? error.message : "Ошибка загрузки файла");
     } finally {
       setUploadingMedia(false);
     }
@@ -263,6 +272,13 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
 
   function setSelectedUploadFile(file: File | null) {
     setSelectedFile(file);
+    if (file) {
+      const nextObjectUrl = URL.createObjectURL(file);
+      objectUrlsRef.current.push(nextObjectUrl);
+      setSelectedFileUrl(nextObjectUrl);
+    } else {
+      setSelectedFileUrl(null);
+    }
     setUploadStatus("idle");
     setUploadProgress(0);
     setUploadMessage(null);
@@ -272,10 +288,10 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     <main className="admin-page">
       <header className="admin-header">
         <div>
-          <p className="eyebrow">Admin</p>
-          <h1>Content Control</h1>
+          <p className="eyebrow">Панель</p>
+          <h1>Управление контентом</h1>
           <p className="admin-copy">
-            Create published albums, upload media, and verify the catalog without leaving the app.
+            Создавайте альбомы, добавляйте файлы и сразу проверяйте каталог прямо в приложении.
           </p>
         </div>
       </header>
@@ -283,18 +299,18 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
       <section className="admin-grid">
         <form className="admin-panel-card" onSubmit={handleCreateAlbum}>
           <div className="admin-panel-head">
-            <h2>Create Album</h2>
-            <p>Published immediately so it appears in the public sections.</p>
+            <h2>Создать альбом</h2>
+            <p>Альбом публикуется сразу и появляется в публичных разделах.</p>
           </div>
 
           <label className="admin-field">
-            <span>Title</span>
+            <span>Название</span>
             <input
               value={albumForm.title}
               onChange={(event) =>
                 setAlbumForm((current) => ({ ...current, title: event.target.value }))
               }
-              placeholder="Showreel"
+              placeholder="Шоурил"
             />
           </label>
 
@@ -310,7 +326,7 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
           </label>
 
           <label className="admin-field">
-            <span>Section</span>
+            <span>Раздел</span>
             <select
               value={albumForm.section}
               onChange={(event) =>
@@ -322,26 +338,26 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
             >
               {editableSections.map((section) => (
                 <option key={section.id} value={section.slug}>
-                  {section.title.toUpperCase()}
+                  {sectionLabels[section.slug] ?? section.title}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="admin-field">
-            <span>Description</span>
+            <span>Описание</span>
             <textarea
               value={albumForm.description}
               onChange={(event) =>
                 setAlbumForm((current) => ({ ...current, description: event.target.value }))
               }
-              placeholder="Selected cinematic works"
+              placeholder="Избранные кинематографичные работы"
               rows={4}
             />
           </label>
 
           <button type="submit" className="primary-link admin-submit" disabled={creatingAlbum}>
-            {creatingAlbum ? "Creating..." : "Create Album"}
+            {creatingAlbum ? "Создание..." : "Создать альбом"}
           </button>
 
           {albumMessage ? <p className="admin-feedback">{albumMessage}</p> : null}
@@ -349,12 +365,12 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
 
         <form className="admin-panel-card" onSubmit={handleUploadMedia}>
           <div className="admin-panel-head">
-            <h2>Upload + Create Media</h2>
-            <p>Uses the existing presigned upload flow, then creates the database record.</p>
+            <h2>Загрузка файла</h2>
+            <p>Для локальной разработки загрузка в хранилище замокана, затем создаётся запись в базе.</p>
           </div>
 
           <div className="admin-field">
-            <span>File</span>
+            <span>Файл</span>
             <input
               ref={fileInputRef}
               className="admin-file-input"
@@ -387,8 +403,8 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
               disabled={uploadingMedia}
             >
               <div className="upload-dropzone-copy">
-                <strong>Drag and drop a file</strong>
-                <span>or click to browse</span>
+                <strong>Перетащите файл сюда</strong>
+                <span>или нажмите для выбора</span>
               </div>
 
               {selectedFile ? (
@@ -409,7 +425,7 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
           </div>
 
           <label className="admin-field">
-            <span>Album</span>
+            <span>Альбом</span>
             <select
               value={uploadForm.albumId}
               onChange={(event) =>
@@ -419,27 +435,29 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
             >
               {albumOptions.map((album) => (
                 <option key={album.id} value={album.id}>
-                  {album.label}
+                  {album.title} · {sectionLabels[album.sectionSlug] ?? album.sectionSlug}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="admin-field">
-            <span>Title</span>
+            <span>Название</span>
             <input
               value={uploadForm.title}
               onChange={(event) =>
                 setUploadForm((current) => ({ ...current, title: event.target.value }))
               }
-              placeholder="Optional title"
+              placeholder="Необязательное название"
               disabled={uploadingMedia}
             />
           </label>
 
           <div className="upload-status-block">
             <div className="upload-status-row">
-              <span className={`upload-status-pill is-${uploadStatus}`}>{uploadStatus}</span>
+              <span className={`upload-status-pill is-${uploadStatus}`}>
+                {uploadStatusLabels[uploadStatus]}
+              </span>
               <span>{uploadProgress}%</span>
             </div>
             <div className="upload-progress-track" aria-hidden="true">
@@ -451,17 +469,41 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
           </div>
 
           <button type="submit" className="primary-link admin-submit" disabled={uploadingMedia}>
-            {uploadingMedia ? "Uploading..." : "Upload Media"}
+            {uploadingMedia ? "Загрузка..." : "Загрузить файл"}
           </button>
 
           {uploadMessage ? <p className="admin-feedback">{uploadMessage}</p> : null}
+
+          {lastCreatedMedia ? (
+            <div className="upload-result-card">
+              <div className="upload-result-copy">
+                <strong>Последний загруженный файл</strong>
+                <span>{lastCreatedMedia.title}</span>
+              </div>
+
+              {lastCreatedMedia.kind === "IMAGE" ? (
+                <img
+                  src={lastCreatedMedia.publicUrl}
+                  alt={lastCreatedMedia.title}
+                  className="upload-result-image"
+                />
+              ) : (
+                <video
+                  src={lastCreatedMedia.publicUrl}
+                  className="upload-result-video"
+                  controls
+                  playsInline
+                />
+              )}
+            </div>
+          ) : null}
         </form>
       </section>
 
       <section className="admin-list-card">
         <div className="admin-panel-head">
-          <h2>Albums</h2>
-          <p>Current catalog across video and photo sections.</p>
+          <h2>Альбомы</h2>
+          <p>Текущий каталог по разделам видео и фото.</p>
         </div>
 
         <div className="admin-album-list">
@@ -472,9 +514,9 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
                 <p>{album.slug}</p>
               </div>
               <div className="admin-album-meta">
-                <span>{album.sectionSlug.toUpperCase()}</span>
-                <span>{album.itemCount} items</span>
-                <span>{album.isPublished ? "Published" : "Draft"}</span>
+                <span>{sectionLabels[album.sectionSlug] ?? album.sectionSlug}</span>
+                <span>{album.itemCount} файлов</span>
+                <span>{album.isPublished ? "Опубликован" : "Черновик"}</span>
               </div>
             </div>
           ))}
@@ -495,15 +537,15 @@ function sortAlbums(albums: AlbumCard[]): AlbumCard[] {
 }
 
 function getMediaKind(file: File):
-  | { value: "VIDEO"; sectionSlug: "video"; label: "Video" }
-  | { value: "IMAGE"; sectionSlug: "photo"; label: "Image" }
+  | { value: "VIDEO"; sectionSlug: "video"; label: string }
+  | { value: "IMAGE"; sectionSlug: "photo"; label: string }
   | null {
   if (file.type === "video/mp4" || file.type === "video/webm") {
-    return { value: "VIDEO", sectionSlug: "video", label: "Video" };
+    return { value: "VIDEO", sectionSlug: "video", label: "Видео" };
   }
 
   if (file.type === "image/jpeg" || file.type === "image/png") {
-    return { value: "IMAGE", sectionSlug: "photo", label: "Image" };
+    return { value: "IMAGE", sectionSlug: "photo", label: "Изображения" };
   }
 
   return null;
@@ -540,7 +582,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Failed to read image metadata"));
+    image.onerror = () => reject(new Error("Не удалось прочитать параметры изображения"));
     image.src = src;
   });
 }
@@ -550,42 +592,40 @@ function loadVideo(src: string): Promise<HTMLVideoElement> {
     const video = document.createElement("video");
     video.preload = "metadata";
     video.onloadedmetadata = () => resolve(video);
-    video.onerror = () => reject(new Error("Failed to read video metadata"));
+    video.onerror = () => reject(new Error("Не удалось прочитать параметры видео"));
     video.src = src;
   });
 }
 
-function uploadFileWithProgress(input: {
-  uploadUrl: string;
+function mockUploadWithProgress(input: {
   file: File;
-  contentType: string;
   onProgress: (progress: number) => void;
-}): Promise<void> {
+}): Promise<{ storageKey: string }> {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", input.uploadUrl);
-    xhr.setRequestHeader("Content-Type", input.contentType);
+    let progress = 0;
+    const intervalId = window.setInterval(() => {
+      progress = Math.min(progress + 12, 96);
+      input.onProgress(progress);
+    }, 90);
 
-    xhr.upload.onprogress = (event) => {
-      if (!event.lengthComputable) {
-        return;
-      }
+    window.setTimeout(() => {
+      window.clearInterval(intervalId);
 
-      input.onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
-    };
+      try {
+        const normalizedName = input.file.name
+          .normalize("NFKD")
+          .replace(/[^\w.-]+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "") || "file";
 
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
         input.onProgress(100);
-        resolve();
-        return;
+        resolve({
+          storageKey: `mock/local/${Date.now()}-${normalizedName}`,
+        });
+      } catch {
+        reject(new Error("Ошибка загрузки файла"));
       }
-
-      reject(new Error("Upload to storage failed"));
-    };
-
-    xhr.onerror = () => reject(new Error("Upload to storage failed"));
-    xhr.send(input.file);
+    }, 900);
   });
 }
 
@@ -595,4 +635,18 @@ function formatFileSize(bytes: number): string {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function translateAdminError(message: string): string {
+  const translations: Record<string, string> = {
+    "Section not found": "Раздел не найден",
+    "Album slug already exists": "Альбом с таким slug уже существует",
+    "Invalid album payload": "Некорректные данные альбома",
+    "Album not found": "Альбом не найден",
+    "Invalid media payload": "Некорректные данные файла",
+    "Resource already exists": "Такой файл уже существует",
+    "Failed to create media": "Не удалось создать файл",
+  };
+
+  return translations[message] ?? message;
 }
