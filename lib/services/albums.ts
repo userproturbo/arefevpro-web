@@ -21,6 +21,23 @@ export type AlbumCard = {
   sectionSlug: string;
 };
 
+export type AdminAlbumCard = AlbumCard & {
+  createdAt: string;
+};
+
+export type AdminMediaItem = {
+  id: string;
+  title: string;
+  kind: "VIDEO" | "IMAGE";
+  previewUrl: string;
+  mediaUrl: string;
+  thumbnailUrl: string | null;
+  durationSec: number | null;
+  isPublished: boolean;
+  isFeatured: boolean;
+  createdAt: string;
+};
+
 export type VideoListItem = {
   id: string;
   title: string;
@@ -220,6 +237,130 @@ export async function listAllAlbums(): Promise<AlbumCard[]> {
     itemCount: album._count.videos + album._count.mediaFiles,
     sectionSlug: album.section.slug,
   }));
+}
+
+export async function listAlbumsBySection(sectionSlug: string): Promise<AdminAlbumCard[]> {
+  const albums = await prisma.album.findMany({
+    where: {
+      section: {
+        slug: sectionSlug,
+      },
+    },
+    orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+    include: {
+      section: {
+        select: {
+          slug: true,
+        },
+      },
+      cover: {
+        select: {
+          publicUrl: true,
+        },
+      },
+      _count: {
+        select: {
+          videos: true,
+          mediaFiles: {
+            where: {
+              kind: "IMAGE",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return albums.map((album) => ({
+    id: album.id,
+    title: album.title,
+    slug: album.slug,
+    description: album.description,
+    isPublished: album.isPublished,
+    coverUrl: album.cover?.publicUrl ?? null,
+    itemCount: album._count.videos + album._count.mediaFiles,
+    sectionSlug: album.section.slug,
+    createdAt: album.createdAt.toISOString(),
+  }));
+}
+
+export async function getAlbumMediaById(albumId: string): Promise<AdminMediaItem[]> {
+  const album = await prisma.album.findUnique({
+    where: {
+      id: albumId,
+    },
+    select: {
+      videos: {
+        orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          title: true,
+          isPublished: true,
+          isFeatured: true,
+          createdAt: true,
+          videoFile: {
+            select: {
+              id: true,
+              publicUrl: true,
+              durationSec: true,
+            },
+          },
+          thumbnail: {
+            select: {
+              publicUrl: true,
+            },
+          },
+        },
+      },
+      mediaFiles: {
+        where: {
+          kind: "IMAGE",
+        },
+        orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          title: true,
+          isPublished: true,
+          createdAt: true,
+          publicUrl: true,
+        },
+      },
+    },
+  });
+
+  if (!album) {
+    throw new AlbumServiceError("Album not found", 404);
+  }
+
+  const videos: AdminMediaItem[] = album.videos.map((video) => ({
+    id: video.videoFile.id,
+    title: video.title,
+    kind: "VIDEO",
+    previewUrl: video.thumbnail?.publicUrl ?? video.videoFile.publicUrl,
+    mediaUrl: video.videoFile.publicUrl,
+    thumbnailUrl: video.thumbnail?.publicUrl ?? null,
+    durationSec: video.videoFile.durationSec,
+    isPublished: video.isPublished,
+    isFeatured: video.isFeatured,
+    createdAt: video.createdAt.toISOString(),
+  }));
+
+  const images: AdminMediaItem[] = album.mediaFiles.map((photo) => ({
+    id: photo.id,
+    title: photo.title ?? "Untitled Image",
+    kind: "IMAGE",
+    previewUrl: photo.publicUrl,
+    mediaUrl: photo.publicUrl,
+    thumbnailUrl: photo.publicUrl,
+    durationSec: null,
+    isPublished: photo.isPublished,
+    isFeatured: false,
+    createdAt: photo.createdAt.toISOString(),
+  }));
+
+  return [...videos, ...images].sort((left, right) =>
+    right.createdAt.localeCompare(left.createdAt),
+  );
 }
 
 export async function getAlbumVideos(slug: string): Promise<VideoListItem[]> {

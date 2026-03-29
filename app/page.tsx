@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getHomePageData } from "@/lib/services/sections";
+import { getFeaturedVideo } from "@/lib/services/media";
+import { listSections } from "@/lib/services/sections";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const { heroVideo, sections } = await getHomePageData();
+  const [heroVideo, sections] = await Promise.all([getFeaturedVideo(), listSections()]);
 
   return (
     <main className="home-page">
@@ -17,12 +18,14 @@ export default async function HomePage() {
           muted
           loop
           playsInline
+          preload="metadata"
+          aria-hidden="true"
         />
       ) : (
-        <div className="home-hero-fallback" />
+        <div className="home-hero-fallback" aria-hidden="true" />
       )}
 
-      <div className="home-overlay" />
+      <div className="home-overlay" aria-hidden="true" />
 
       <header className="home-header">
         <div className="brand-mark">

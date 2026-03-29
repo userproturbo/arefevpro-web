@@ -3,9 +3,10 @@
 import { useState } from "react";
 
 type UploadResponse = {
-  uploadUrl: string;
+  storageKey: string;
   publicUrl: string;
-  key: string;
+  mimeType: string;
+  size: number;
 };
 
 type UploadErrorResponse = {
@@ -29,15 +30,12 @@ export default function TestUploadPage() {
     setUploadedFileUrl(null);
 
     try {
+      const formData = new FormData();
+      formData.append("file", file);
+
       const response = await fetch("/api/upload", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type || "application/octet-stream",
-        }),
+        body: formData,
       });
 
       const data = (await response.json()) as UploadResponse | UploadErrorResponse;
@@ -49,20 +47,8 @@ export default function TestUploadPage() {
         throw new Error(message);
       }
 
-      if (!("uploadUrl" in data)) {
+      if (!("publicUrl" in data)) {
         throw new Error("Invalid upload response.");
-      }
-
-      const uploadResponse = await fetch(data.uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type || "application/octet-stream",
-        },
-        body: file,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Failed to upload file to storage.");
       }
 
       setUploadedFileUrl(data.publicUrl);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSectionAlbums } from "@/lib/services/sections";
+import { listAlbumsBySection } from "@/lib/services/albums";
 
 type RouteContext = {
   params: Promise<{
@@ -9,7 +9,7 @@ type RouteContext = {
 
 export async function GET(_: Request, context: RouteContext) {
   const { slug } = await context.params;
-  const albums = await getSectionAlbums(slug);
+  const albums = await listAlbumsBySection(slug);
 
   return NextResponse.json(albums);
 }

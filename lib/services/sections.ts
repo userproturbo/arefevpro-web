@@ -1,6 +1,7 @@
 import { SectionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAlbumPhotos, getAlbumVideos, type AlbumCard, type PhotoListItem, type VideoListItem } from "@/lib/services/albums";
+import { getFeaturedVideo } from "@/lib/services/media";
 
 export type SectionSummary = {
   id: string;
@@ -193,41 +194,7 @@ export async function getSectionPageData(slug: string): Promise<SectionPageData 
 export async function getHomePageData(): Promise<HomePageData> {
   const [sections, heroVideo] = await Promise.all([
     listSections(),
-    prisma.video.findFirst({
-      where: {
-        isPublished: true,
-        album: {
-          isPublished: true,
-          section: {
-            type: SectionType.VIDEO,
-          },
-        },
-      },
-      orderBy: [{ isFeatured: "desc" }, { order: "asc" }, { createdAt: "desc" }],
-      select: {
-        title: true,
-        videoFile: {
-          select: {
-            publicUrl: true,
-          },
-        },
-        thumbnail: {
-          select: {
-            publicUrl: true,
-          },
-        },
-        album: {
-          select: {
-            slug: true,
-            section: {
-              select: {
-                slug: true,
-              },
-            },
-          },
-        },
-      },
-    }),
+    getFeaturedVideo(),
   ]);
 
   return {
@@ -235,10 +202,10 @@ export async function getHomePageData(): Promise<HomePageData> {
     heroVideo: heroVideo
       ? {
           title: heroVideo.title,
-          sectionSlug: heroVideo.album.section.slug,
-          albumSlug: heroVideo.album.slug,
-          videoUrl: heroVideo.videoFile.publicUrl,
-          posterUrl: heroVideo.thumbnail?.publicUrl ?? null,
+          sectionSlug: heroVideo.sectionSlug,
+          albumSlug: heroVideo.albumSlug,
+          videoUrl: heroVideo.videoUrl,
+          posterUrl: heroVideo.posterUrl,
         }
       : null,
   };
