@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "arefevpro-web",
-  description: "Initial Next.js project setup",
+  title: "Arefev Portfolio",
+  description: "Cinematic portfolio and media CMS",
 };
 
 type RootLayoutProps = Readonly<{

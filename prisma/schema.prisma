@@ -6,8 +6,96 @@ datasource db {
   provider = "postgresql"
 }
 
-model Example {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum SectionType {
+  VIDEO
+  PHOTO
+  BLOG
+  MUSIC
+}
+
+enum MediaKind {
+  VIDEO
+  IMAGE
+  AUDIO
+  DOCUMENT
+}
+
+model Section {
+  id        String      @id @default(uuid()) @db.Uuid
+  type      SectionType @unique
+  title     String
+  slug      String      @unique
+  order     Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  albums    Album[]
+}
+
+model Album {
+  id          String      @id @default(uuid()) @db.Uuid
+  title       String
+  slug        String      @unique
+  description String?
+  coverId     String?     @db.Uuid
+  sectionId   String      @db.Uuid
+  order       Int         @default(0)
+  isPublished Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  section     Section     @relation(fields: [sectionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cover       MediaFile?  @relation("AlbumCover", fields: [coverId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mediaFiles  MediaFile[] @relation("AlbumMediaFiles")
+  videos      Video[]
+
+  @@index([sectionId])
+  @@index([isPublished, order, createdAt])
+}
+
+model MediaFile {
+  id              String   @id @default(uuid()) @db.Uuid
+  title           String?
+  slug            String?  @unique
+  kind            MediaKind
+  storageKey      String   @unique
+  publicUrl       String
+  mimeType        String
+  albumId         String?  @db.Uuid
+  order           Int      @default(0)
+  isPublished     Boolean  @default(false)
+  sizeBytes       Int?
+  width           Int?
+  height          Int?
+  durationSec     Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  album           Album?   @relation("AlbumMediaFiles", fields: [albumId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  albumCovers     Album[]  @relation("AlbumCover")
+  videoSources    Video[]  @relation("VideoSourceFile")
+  videoThumbnails Video[]  @relation("VideoThumbnail")
+
+  @@index([albumId, kind, isPublished, order, createdAt])
+}
+
+model Video {
+  id           String     @id @default(uuid()) @db.Uuid
+  title        String
+  slug         String     @unique
+  description  String?
+  albumId      String     @db.Uuid
+  videoFileId  String     @db.Uuid
+  thumbnailId  String?    @db.Uuid
+  order        Int        @default(0)
+  isFeatured   Boolean    @default(false)
+  isPublished  Boolean    @default(false)
+  publishedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  album        Album      @relation(fields: [albumId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  videoFile    MediaFile  @relation("VideoSourceFile", fields: [videoFileId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  thumbnail    MediaFile? @relation("VideoThumbnail", fields: [thumbnailId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([albumId])
+  @@index([isFeatured])
+  @@index([isPublished])
+  @@index([order, createdAt])
 }

@@ -8,14 +8,20 @@
     "build": "next build",
     "start": "next start",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "7.6.0",
+    "@aws-sdk/client-s3": "3.884.0",
+    "@aws-sdk/s3-request-presigner": "3.884.0",
+    "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "7.6.0",
     "dotenv": "17.3.1",
     "next": "16.2.1",
-    "pg": "8.20.0",
+    "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
