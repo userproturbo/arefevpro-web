@@ -8,7 +8,7 @@ const MIME_TYPES_BY_KIND: Record<"VIDEO" | "IMAGE", readonly string[]> = {
   IMAGE: ["image/jpeg", "image/png"],
 };
 
-const DEFAULT_MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024;
+const DEFAULT_MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024;
 const DEFAULT_MAX_VIDEO_DURATION_SEC = 10 * 60;
 const SLUG_MAX_ATTEMPTS = 5;
 
@@ -326,8 +326,10 @@ function validateMimeType(
 
 function validateFileSize(sizeBytes: number, fieldName = "sizeBytes"): void {
   if (sizeBytes > mediaLimits.maxFileSizeBytes) {
+    const maxSizeMb = Math.round(mediaLimits.maxFileSizeBytes / (1024 * 1024));
+
     throw new MediaServiceError(
-      `${fieldName} exceeds the maximum allowed size of ${mediaLimits.maxFileSizeBytes} bytes`,
+      `File exceeds maximum allowed size of ${maxSizeMb} MB`,
       400,
     );
   }
