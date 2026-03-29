@@ -1,5 +1,6 @@
-import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { s3 } from "@/lib/s3";
 
 const REQUIRED_ENV_VARS = [
   "S3_ENDPOINT",
@@ -13,11 +14,7 @@ const REQUIRED_ENV_VARS = [
 type RequiredEnvVar = (typeof REQUIRED_ENV_VARS)[number];
 
 type StorageConfig = {
-  endpoint: string;
   bucket: string;
-  region: string;
-  accessKeyId: string;
-  secretAccessKey: string;
   publicUrl: string;
 };
 
@@ -33,25 +30,12 @@ function getEnv(name: RequiredEnvVar): string {
 
 function createStorageConfig(): StorageConfig {
   return {
-    endpoint: getEnv("S3_ENDPOINT"),
     bucket: getEnv("S3_BUCKET"),
-    region: getEnv("S3_REGION"),
-    accessKeyId: getEnv("S3_ACCESS_KEY"),
-    secretAccessKey: getEnv("S3_SECRET_KEY"),
     publicUrl: getEnv("S3_PUBLIC_URL").replace(/\/+$/, ""),
   };
 }
 
 const storageConfig = createStorageConfig();
-
-const s3Client = new S3Client({
-  endpoint: storageConfig.endpoint,
-  region: storageConfig.region,
-  credentials: {
-    accessKeyId: storageConfig.accessKeyId,
-    secretAccessKey: storageConfig.secretAccessKey,
-  },
-});
 
 export async function generateUploadUrl(
   key: string,
@@ -63,7 +47,7 @@ export async function generateUploadUrl(
     ContentType: contentType,
   });
 
-  return getSignedUrl(s3Client, command, {
+  return getSignedUrl(s3, command, {
     expiresIn: 60 * 5,
     signableHeaders: new Set(["content-type"]),
   });
@@ -75,9 +59,13 @@ export function getPublicUrl(key: string): string {
   return `${storageConfig.publicUrl}/${normalizedKey}`;
 }
 
+export function getStorageBucket(): string {
+  return storageConfig.bucket;
+}
+
 export async function storageObjectExists(key: string): Promise<boolean> {
   try {
-    await s3Client.send(
+    await s3.send(
       new HeadObjectCommand({
         Bucket: storageConfig.bucket,
         Key: key,

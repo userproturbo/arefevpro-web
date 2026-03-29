@@ -1,27 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AlbumCard } from "@/lib/services/albums";
+import type { AdminAlbumCard, AdminMediaItem } from "@/lib/services/albums";
 import type { SectionSummary } from "@/lib/services/sections";
 
 type AdminPanelProps = {
-  initialAlbums: AlbumCard[];
   sections: SectionSummary[];
 };
 
 type AlbumFormState = {
   title: string;
   slug: string;
-  section: "video" | "photo";
   description: string;
 };
 
 type UploadFormState = {
-  albumId: string;
   title: string;
+  isFeatured: boolean;
 };
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
+
+type FileUploadResult = {
+  storageKey: string;
+  publicUrl: string;
+  mimeType: string;
+  size: number;
+};
 
 const uploadStatusLabels: Record<UploadStatus, string> = {
   idle: "Ожидание",
@@ -33,50 +38,53 @@ const uploadStatusLabels: Record<UploadStatus, string> = {
 const sectionLabels: Record<string, string> = {
   video: "Видео",
   photo: "Фото",
+  blog: "Блог",
+  music: "Музыка",
 };
 
-export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
-  const [albums, setAlbums] = useState(initialAlbums);
+export function AdminPanel({ sections }: AdminPanelProps) {
+  const [albums, setAlbums] = useState<AdminAlbumCard[]>([]);
+  const [mediaItems, setMediaItems] = useState<AdminMediaItem[]>([]);
+  const [selectedSectionId, setSelectedSectionId] = useState<string>(sections[0]?.id ?? "");
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string>("");
   const [albumForm, setAlbumForm] = useState<AlbumFormState>({
     title: "",
     slug: "",
-    section: "video",
     description: "",
   });
   const [uploadForm, setUploadForm] = useState<UploadFormState>({
-    albumId: initialAlbums[0]?.id ?? "",
     title: "",
+    isFeatured: false,
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileUrl, setSelectedFileUrl] = useState<string | null>(null);
-  const [dragActive, setDragActive] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [lastCreatedMedia, setLastCreatedMedia] = useState<{
-    kind: "VIDEO" | "IMAGE";
-    title: string;
-    publicUrl: string;
-  } | null>(null);
-  const [albumMessage, setAlbumMessage] = useState<string | null>(null);
-  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [loadingAlbums, setLoadingAlbums] = useState(false);
+  const [loadingMedia, setLoadingMedia] = useState(false);
   const [creatingAlbum, setCreatingAlbum] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+  const [isCreateAlbumOpen, setIsCreateAlbumOpen] = useState(false);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [albumMessage, setAlbumMessage] = useState<string | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const objectUrlsRef = useRef<string[]>([]);
 
-  const editableSections = sections.filter(
-    (section) => section.slug === "video" || section.slug === "photo",
+  const selectedSection = useMemo(
+    () => sections.find((section) => section.id === selectedSectionId) ?? sections[0] ?? null,
+    [sections, selectedSectionId],
   );
 
-  const albumOptions = useMemo(
-    () =>
-      albums.map((album) => ({
-        ...album,
-        label: `${album.title} · ${album.sectionSlug.toUpperCase()}`,
-      })),
-    [albums],
+  const selectedAlbum = useMemo(
+    () => albums.find((album) => album.id === selectedAlbumId) ?? null,
+    [albums, selectedAlbumId],
   );
+
+  const mediaUploadEnabled = selectedSection?.slug === "video" || selectedSection?.slug === "photo";
 
   useEffect(() => {
     if (!selectedFile || !selectedFileUrl || !selectedFile.type.startsWith("image/")) {
@@ -94,8 +102,88 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     [],
   );
 
+  useEffect(() => {
+    if (!selectedSection) {
+      return;
+    }
+
+    void loadAlbums(selectedSection.slug);
+  }, [selectedSectionId]);
+
+  useEffect(() => {
+    if (!selectedAlbumId) {
+      setMediaItems([]);
+      return;
+    }
+
+    void loadMedia(selectedAlbumId);
+  }, [selectedAlbumId]);
+
+  useEffect(() => {
+    if (selectedSection?.slug !== "video" && uploadForm.isFeatured) {
+      setUploadForm((current) => ({ ...current, isFeatured: false }));
+    }
+  }, [selectedSection?.slug, uploadForm.isFeatured]);
+
+  async function loadAlbums(sectionSlug: string, preferredAlbumId?: string) {
+    setLoadingAlbums(true);
+    setAlbumMessage(null);
+
+    try {
+      const response = await fetch(`/api/sections/${sectionSlug}/albums`);
+      const payload = (await response.json()) as AdminAlbumCard[] | { error?: string };
+
+      if (!response.ok || !Array.isArray(payload)) {
+        throw new Error(
+          translateAdminError(("error" in payload && payload.error) || "Не удалось загрузить альбомы"),
+        );
+      }
+
+      setAlbums(payload);
+      const nextAlbum =
+        payload.find((album) => album.id === preferredAlbumId) ??
+        payload[0] ??
+        null;
+      setSelectedAlbumId(nextAlbum?.id ?? "");
+    } catch (error) {
+      setAlbums([]);
+      setSelectedAlbumId("");
+      setAlbumMessage(error instanceof Error ? error.message : "Не удалось загрузить альбомы");
+    } finally {
+      setLoadingAlbums(false);
+    }
+  }
+
+  async function loadMedia(albumId: string) {
+    setLoadingMedia(true);
+    setUploadMessage(null);
+
+    try {
+      const response = await fetch(`/api/albums/${albumId}/media`);
+      const payload = (await response.json()) as AdminMediaItem[] | { error?: string };
+
+      if (!response.ok || !Array.isArray(payload)) {
+        throw new Error(
+          translateAdminError(("error" in payload && payload.error) || "Не удалось загрузить медиа"),
+        );
+      }
+
+      setMediaItems(payload);
+    } catch (error) {
+      setMediaItems([]);
+      setUploadMessage(error instanceof Error ? error.message : "Не удалось загрузить медиа");
+    } finally {
+      setLoadingMedia(false);
+    }
+  }
+
   async function handleCreateAlbum(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!selectedSection) {
+      return;
+    }
+
     setCreatingAlbum(true);
     setAlbumMessage(null);
 
@@ -107,14 +195,14 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
         },
         body: JSON.stringify({
           title: albumForm.title,
-          slug: albumForm.slug,
-          sectionSlug: albumForm.section,
+          slug: albumForm.slug || undefined,
+          sectionSlug: selectedSection.slug,
           description: albumForm.description || undefined,
           isPublished: true,
         }),
       });
 
-      const payload = (await response.json()) as AlbumCard | { error?: string };
+      const payload = (await response.json()) as AdminAlbumCard | { error?: string };
 
       if (!response.ok || "error" in payload) {
         throw new Error(
@@ -122,19 +210,16 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
         );
       }
 
-      const createdAlbum = payload as AlbumCard;
-      setAlbums((current) => sortAlbums([createdAlbum, ...current]));
-      setUploadForm((current) => ({
-        ...current,
-        albumId: createdAlbum.id,
-      }));
+      const createdAlbum = payload as AdminAlbumCard;
+
       setAlbumForm({
         title: "",
         slug: "",
-        section: albumForm.section,
         description: "",
       });
+      setIsCreateAlbumOpen(false);
       setAlbumMessage(`Альбом создан: ${createdAlbum.title}`);
+      await loadAlbums(selectedSection.slug, createdAlbum.id);
     } catch (error) {
       setAlbumMessage(error instanceof Error ? error.message : "Не удалось создать альбом");
     } finally {
@@ -145,7 +230,8 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
   async function handleUploadMedia(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (uploadingMedia) {
+    if (!selectedAlbum || !selectedSection) {
+      setUploadMessage("Выберите альбом");
       return;
     }
 
@@ -161,14 +247,6 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
       return;
     }
 
-    const selectedAlbum = albums.find((album) => album.id === uploadForm.albumId);
-
-    if (!selectedAlbum) {
-      setUploadStatus("error");
-      setUploadMessage("Выберите альбом");
-      return;
-    }
-
     const kind = getMediaKind(selectedFile);
 
     if (!kind) {
@@ -177,27 +255,26 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
       return;
     }
 
-    if (selectedAlbum.sectionSlug !== kind.sectionSlug) {
+    if (selectedSection.slug !== kind.sectionSlug) {
       setUploadStatus("error");
       setUploadMessage(
-        `${kind.label} можно загружать только в альбомы раздела ${kind.sectionSlug.toUpperCase()}`,
+        `${kind.label} можно загружать только в раздел ${kind.sectionSlug.toUpperCase()}`,
       );
       return;
     }
 
     setUploadingMedia(true);
-    setUploadProgress(0);
     setUploadStatus("uploading");
+    setUploadProgress(0);
     setUploadMessage(null);
 
     try {
-      const mockedUpload = await mockUploadWithProgress({
+      const uploadedFile = await uploadFileWithProgress({
         file: selectedFile,
         onProgress: (progress) => setUploadProgress(progress),
       });
 
       const metadata = await readFileMetadata(selectedFile, kind.value);
-
       const mediaCreateResponse = await fetch("/api/media/create", {
         method: "POST",
         headers: {
@@ -205,16 +282,17 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
         },
         body: JSON.stringify({
           kind: kind.value,
-          storageKey: mockedUpload.storageKey,
-          publicUrl: selectedFileUrl,
-          mimeType: selectedFile.type,
-          sizeBytes: selectedFile.size,
+          storageKey: uploadedFile.storageKey,
+          publicUrl: uploadedFile.publicUrl,
+          mimeType: uploadedFile.mimeType,
+          sizeBytes: uploadedFile.size,
           width: metadata.width,
           height: metadata.height,
           durationSec: metadata.durationSec,
           albumId: selectedAlbum.id,
           title: uploadForm.title || selectedFile.name.replace(/\.[^.]+$/, ""),
           isPublished: true,
+          isFeatured: kind.value === "VIDEO" ? uploadForm.isFeatured : undefined,
         }),
       });
 
@@ -222,34 +300,24 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
         | { error?: string }
         | {
             mediaFile: { id: string };
-            video: { id: string } | null;
           };
 
-      if (!mediaCreateResponse.ok || "error" in mediaPayload) {
+      if (!mediaCreateResponse.ok || "error" in mediaPayload || !("mediaFile" in mediaPayload)) {
         throw new Error(
           translateAdminError(("error" in mediaPayload && mediaPayload.error) || "Не удалось создать файл"),
         );
       }
 
-      setAlbums((current) =>
-        current.map((album) =>
-          album.id === selectedAlbum.id
-            ? { ...album, itemCount: album.itemCount + 1 }
-            : album,
-        ),
-      );
-      setUploadForm((current) => ({
-        ...current,
+      setUploadForm({
         title: "",
-      }));
-      setLastCreatedMedia({
-        kind: kind.value,
-        title: uploadForm.title || selectedFile.name.replace(/\.[^.]+$/, ""),
-        publicUrl: selectedFileUrl,
+        isFeatured: false,
       });
+      setSelectedUploadFile(null);
+      setIsUploadOpen(false);
       setUploadStatus("success");
       setUploadProgress(100);
       setUploadMessage(`Файл добавлен в альбом «${selectedAlbum.title}»`);
+      await Promise.all([loadAlbums(selectedSection.slug, selectedAlbum.id), loadMedia(selectedAlbum.id)]);
     } catch (error) {
       setUploadStatus("error");
       setUploadMessage(error instanceof Error ? error.message : "Ошибка загрузки файла");
@@ -258,20 +326,46 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     }
   }
 
-  function handleDrop(event: React.DragEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    setDragActive(false);
-
-    if (uploadingMedia) {
+  async function handleDeleteMedia(mediaItem: AdminMediaItem) {
+    if (deletingMediaId) {
       return;
     }
 
-    const file = event.dataTransfer.files?.[0] ?? null;
-    setSelectedUploadFile(file);
+    setDeletingMediaId(mediaItem.id);
+    setUploadMessage(null);
+
+    try {
+      const response = await fetch(`/api/media/${mediaItem.id}`, {
+        method: "DELETE",
+      });
+
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          translateAdminError(payload.error || "Не удалось удалить файл"),
+        );
+      }
+
+      setMediaItems((current) => current.filter((item) => item.id !== mediaItem.id));
+      setAlbums((current) =>
+        current.map((album) =>
+          album.id === selectedAlbumId
+            ? { ...album, itemCount: Math.max(album.itemCount - 1, 0) }
+            : album,
+        ),
+      );
+      setUploadMessage(`Файл удалён: ${mediaItem.title}`);
+    } catch (error) {
+      setUploadMessage(error instanceof Error ? error.message : "Не удалось удалить файл");
+    } finally {
+      setDeletingMediaId(null);
+    }
   }
 
   function setSelectedUploadFile(file: File | null) {
     setSelectedFile(file);
+
     if (file) {
       const nextObjectUrl = URL.createObjectURL(file);
       objectUrlsRef.current.push(nextObjectUrl);
@@ -279,261 +373,353 @@ export function AdminPanel({ initialAlbums, sections }: AdminPanelProps) {
     } else {
       setSelectedFileUrl(null);
     }
+
     setUploadStatus("idle");
     setUploadProgress(0);
-    setUploadMessage(null);
   }
 
   return (
-    <main className="admin-page">
+    <main className="admin-page admin-cms">
       <header className="admin-header">
         <div>
-          <p className="eyebrow">Панель</p>
-          <h1>Управление контентом</h1>
+          <p className="eyebrow">CMS</p>
+          <h1>Управление каталогом</h1>
           <p className="admin-copy">
-            Создавайте альбомы, добавляйте файлы и сразу проверяйте каталог прямо в приложении.
+            Section, albums и media собраны в одну трёхколоночную панель без лишних переходов.
           </p>
         </div>
       </header>
 
-      <section className="admin-grid">
-        <form className="admin-panel-card" onSubmit={handleCreateAlbum}>
-          <div className="admin-panel-head">
-            <h2>Создать альбом</h2>
-            <p>Альбом публикуется сразу и появляется в публичных разделах.</p>
+      <section className="admin-cms-shell">
+        <aside className="admin-cms-column admin-cms-sections">
+          <div className="admin-cms-column-head">
+            <h2>Sections</h2>
+            <span>{sections.length}</span>
           </div>
 
-          <label className="admin-field">
-            <span>Название</span>
-            <input
-              value={albumForm.title}
-              onChange={(event) =>
-                setAlbumForm((current) => ({ ...current, title: event.target.value }))
-              }
-              placeholder="Шоурил"
-            />
-          </label>
-
-          <label className="admin-field">
-            <span>Slug</span>
-            <input
-              value={albumForm.slug}
-              onChange={(event) =>
-                setAlbumForm((current) => ({ ...current, slug: event.target.value }))
-              }
-              placeholder="showreel"
-            />
-          </label>
-
-          <label className="admin-field">
-            <span>Раздел</span>
-            <select
-              value={albumForm.section}
-              onChange={(event) =>
-                setAlbumForm((current) => ({
-                  ...current,
-                  section: event.target.value as "video" | "photo",
-                }))
-              }
-            >
-              {editableSections.map((section) => (
-                <option key={section.id} value={section.slug}>
-                  {sectionLabels[section.slug] ?? section.title}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="admin-field">
-            <span>Описание</span>
-            <textarea
-              value={albumForm.description}
-              onChange={(event) =>
-                setAlbumForm((current) => ({ ...current, description: event.target.value }))
-              }
-              placeholder="Избранные кинематографичные работы"
-              rows={4}
-            />
-          </label>
-
-          <button type="submit" className="primary-link admin-submit" disabled={creatingAlbum}>
-            {creatingAlbum ? "Создание..." : "Создать альбом"}
-          </button>
-
-          {albumMessage ? <p className="admin-feedback">{albumMessage}</p> : null}
-        </form>
-
-        <form className="admin-panel-card" onSubmit={handleUploadMedia}>
-          <div className="admin-panel-head">
-            <h2>Загрузка файла</h2>
-            <p>Для локальной разработки загрузка в хранилище замокана, затем создаётся запись в базе.</p>
+          <div className="admin-cms-list">
+            {sections.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                className={`admin-cms-item ${section.id === selectedSectionId ? "is-active" : ""}`}
+                onClick={() => setSelectedSectionId(section.id)}
+              >
+                <div>
+                  <strong>{sectionLabels[section.slug] ?? section.title}</strong>
+                  <p>{section.slug}</p>
+                </div>
+                <span>{section.albumCount}</span>
+              </button>
+            ))}
           </div>
+        </aside>
 
-          <div className="admin-field">
-            <span>Файл</span>
-            <input
-              ref={fileInputRef}
-              className="admin-file-input"
-              type="file"
-              accept="video/mp4,video/webm,image/jpeg,image/png"
-              onChange={(event) => setSelectedUploadFile(event.target.files?.[0] ?? null)}
-              disabled={uploadingMedia}
-            />
+        <section className="admin-cms-column admin-cms-albums">
+          <div className="admin-cms-column-head">
+            <div>
+              <h2>Albums</h2>
+              <p>{selectedSection ? sectionLabels[selectedSection.slug] ?? selectedSection.title : "Section"}</p>
+            </div>
             <button
               type="button"
-              className={`upload-dropzone is-${uploadStatus} ${dragActive ? "is-dragging" : ""}`}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(event) => {
-                event.preventDefault();
-                if (!uploadingMedia) {
-                  setDragActive(true);
-                }
-              }}
-              onDragEnter={(event) => {
-                event.preventDefault();
-                if (!uploadingMedia) {
-                  setDragActive(true);
-                }
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault();
-                setDragActive(false);
-              }}
-              onDrop={handleDrop}
-              disabled={uploadingMedia}
+              className="primary-link"
+              onClick={() => setIsCreateAlbumOpen(true)}
+              disabled={!selectedSection}
             >
-              <div className="upload-dropzone-copy">
-                <strong>Перетащите файл сюда</strong>
-                <span>или нажмите для выбора</span>
-              </div>
-
-              {selectedFile ? (
-                <div className="upload-preview">
-                  {previewUrl ? (
-                    <img src={previewUrl} alt={selectedFile.name} className="upload-preview-image" />
-                  ) : (
-                    <div className="upload-preview-video">VID</div>
-                  )}
-
-                  <div className="upload-preview-copy">
-                    <strong>{selectedFile.name}</strong>
-                    <span>{formatFileSize(selectedFile.size)}</span>
-                  </div>
-                </div>
-              ) : null}
+              + Create album
             </button>
           </div>
 
-          <label className="admin-field">
-            <span>Альбом</span>
-            <select
-              value={uploadForm.albumId}
-              onChange={(event) =>
-                setUploadForm((current) => ({ ...current, albumId: event.target.value }))
-              }
-              disabled={uploadingMedia}
-            >
-              {albumOptions.map((album) => (
-                <option key={album.id} value={album.id}>
-                  {album.title} · {sectionLabels[album.sectionSlug] ?? album.sectionSlug}
-                </option>
-              ))}
-            </select>
-          </label>
+          {albumMessage ? <p className="admin-feedback">{albumMessage}</p> : null}
 
-          <label className="admin-field">
-            <span>Название</span>
-            <input
-              value={uploadForm.title}
-              onChange={(event) =>
-                setUploadForm((current) => ({ ...current, title: event.target.value }))
-              }
-              placeholder="Необязательное название"
-              disabled={uploadingMedia}
-            />
-          </label>
-
-          <div className="upload-status-block">
-            <div className="upload-status-row">
-              <span className={`upload-status-pill is-${uploadStatus}`}>
-                {uploadStatusLabels[uploadStatus]}
-              </span>
-              <span>{uploadProgress}%</span>
-            </div>
-            <div className="upload-progress-track" aria-hidden="true">
-              <div
-                className={`upload-progress-bar is-${uploadStatus}`}
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
+          <div className="admin-cms-list">
+            {loadingAlbums ? (
+              <div className="admin-empty-state">Загрузка альбомов...</div>
+            ) : albums.length === 0 ? (
+              <div className="admin-empty-state">В этом разделе пока нет альбомов.</div>
+            ) : (
+              albums.map((album) => (
+                <button
+                  key={album.id}
+                  type="button"
+                  className={`admin-cms-item ${album.id === selectedAlbumId ? "is-active" : ""}`}
+                  onClick={() => setSelectedAlbumId(album.id)}
+                >
+                  <div>
+                    <strong>{album.title}</strong>
+                    <p>{album.slug}</p>
+                  </div>
+                  <span>{album.itemCount}</span>
+                </button>
+              ))
+            )}
           </div>
+        </section>
 
-          <button type="submit" className="primary-link admin-submit" disabled={uploadingMedia}>
-            {uploadingMedia ? "Загрузка..." : "Загрузить файл"}
-          </button>
+        <section className="admin-cms-column admin-cms-media">
+          <div className="admin-cms-column-head">
+            <div>
+              <h2>Media</h2>
+              <p>{selectedAlbum?.title ?? "Select album"}</p>
+            </div>
+            <button
+              type="button"
+              className="primary-link"
+              onClick={() => setIsUploadOpen(true)}
+              disabled={!selectedAlbum || !mediaUploadEnabled}
+            >
+              Upload
+            </button>
+          </div>
 
           {uploadMessage ? <p className="admin-feedback">{uploadMessage}</p> : null}
 
-          {lastCreatedMedia ? (
-            <div className="upload-result-card">
-              <div className="upload-result-copy">
-                <strong>Последний загруженный файл</strong>
-                <span>{lastCreatedMedia.title}</span>
-              </div>
-
-              {lastCreatedMedia.kind === "IMAGE" ? (
-                <img
-                  src={lastCreatedMedia.publicUrl}
-                  alt={lastCreatedMedia.title}
-                  className="upload-result-image"
-                />
-              ) : (
-                <video
-                  src={lastCreatedMedia.publicUrl}
-                  className="upload-result-video"
-                  controls
-                  playsInline
-                />
-              )}
+          {!mediaUploadEnabled && selectedSection ? (
+            <div className="admin-empty-state">
+              Для раздела {sectionLabels[selectedSection.slug] ?? selectedSection.title} загрузка медиа пока не настроена.
             </div>
-          ) : null}
-        </form>
+          ) : loadingMedia ? (
+            <div className="admin-empty-state">Загрузка медиа...</div>
+          ) : !selectedAlbum ? (
+            <div className="admin-empty-state">Выберите альбом, чтобы увидеть media.</div>
+          ) : mediaItems.length === 0 ? (
+            <div className="admin-empty-state">В этом альбоме пока нет медиа.</div>
+          ) : (
+            <div className="admin-media-grid">
+              {mediaItems.map((mediaItem) => (
+                <article key={mediaItem.id} className="admin-media-card">
+                  <div className="admin-media-preview">
+                    {mediaItem.kind === "VIDEO" ? (
+                      <video
+                        src={mediaItem.mediaUrl}
+                        poster={mediaItem.thumbnailUrl ?? undefined}
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <img src={mediaItem.mediaUrl} alt={mediaItem.title} />
+                    )}
+                  </div>
+
+                  <div className="admin-media-copy">
+                    <strong>{mediaItem.title}</strong>
+                    <p>{mediaItem.kind === "VIDEO" ? formatDuration(mediaItem.durationSec) : "Image"}</p>
+                  </div>
+
+                  <div className="admin-media-meta">
+                    {mediaItem.isFeatured ? <span>Featured</span> : null}
+                    <span>{mediaItem.isPublished ? "Published" : "Draft"}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="secondary-link admin-media-delete"
+                    onClick={() => handleDeleteMedia(mediaItem)}
+                    disabled={deletingMediaId === mediaItem.id}
+                  >
+                    {deletingMediaId === mediaItem.id ? "Deleting..." : "Delete"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </section>
 
-      <section className="admin-list-card">
-        <div className="admin-panel-head">
-          <h2>Альбомы</h2>
-          <p>Текущий каталог по разделам видео и фото.</p>
-        </div>
-
-        <div className="admin-album-list">
-          {albums.map((album) => (
-            <div key={album.id} className="admin-album-row">
+      {isCreateAlbumOpen && selectedSection ? (
+        <div className="admin-modal" role="dialog" aria-modal="true">
+          <form className="admin-modal-card" onSubmit={handleCreateAlbum}>
+            <div className="admin-cms-column-head">
               <div>
-                <strong>{album.title}</strong>
-                <p>{album.slug}</p>
+                <h2>Create album</h2>
+                <p>{sectionLabels[selectedSection.slug] ?? selectedSection.title}</p>
               </div>
-              <div className="admin-album-meta">
-                <span>{sectionLabels[album.sectionSlug] ?? album.sectionSlug}</span>
-                <span>{album.itemCount} файлов</span>
-                <span>{album.isPublished ? "Опубликован" : "Черновик"}</span>
+              <button
+                type="button"
+                className="lightbox-close"
+                onClick={() => setIsCreateAlbumOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <label className="admin-field">
+              <span>Название</span>
+              <input
+                value={albumForm.title}
+                onChange={(event) =>
+                  setAlbumForm((current) => ({ ...current, title: event.target.value }))
+                }
+                placeholder="Showreel"
+              />
+            </label>
+
+            <label className="admin-field">
+              <span>Slug</span>
+              <input
+                value={albumForm.slug}
+                onChange={(event) =>
+                  setAlbumForm((current) => ({ ...current, slug: event.target.value }))
+                }
+                placeholder="optional-slug"
+              />
+            </label>
+
+            <label className="admin-field">
+              <span>Описание</span>
+              <textarea
+                value={albumForm.description}
+                onChange={(event) =>
+                  setAlbumForm((current) => ({ ...current, description: event.target.value }))
+                }
+                rows={4}
+                placeholder="Короткое описание альбома"
+              />
+            </label>
+
+            <div className="admin-modal-actions">
+              <button type="button" className="secondary-link" onClick={() => setIsCreateAlbumOpen(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-link" disabled={creatingAlbum}>
+                {creatingAlbum ? "Создание..." : "Create album"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {isUploadOpen && selectedAlbum && selectedSection ? (
+        <div className="admin-modal" role="dialog" aria-modal="true">
+          <form className="admin-modal-card" onSubmit={handleUploadMedia}>
+            <div className="admin-cms-column-head">
+              <div>
+                <h2>Upload media</h2>
+                <p>{selectedAlbum.title}</p>
+              </div>
+              <button
+                type="button"
+                className="lightbox-close"
+                onClick={() => setIsUploadOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="admin-field">
+              <span>Файл</span>
+              <input
+                ref={fileInputRef}
+                className="admin-file-input"
+                type="file"
+                accept="video/mp4,video/webm,image/jpeg,image/png"
+                onChange={(event) => setSelectedUploadFile(event.target.files?.[0] ?? null)}
+                disabled={uploadingMedia}
+              />
+              <button
+                type="button"
+                className={`upload-dropzone is-${uploadStatus} ${dragActive ? "is-dragging" : ""}`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (!uploadingMedia) {
+                    setDragActive(true);
+                  }
+                }}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  if (!uploadingMedia) {
+                    setDragActive(true);
+                  }
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  setDragActive(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragActive(false);
+                  setSelectedUploadFile(event.dataTransfer.files?.[0] ?? null);
+                }}
+                disabled={uploadingMedia}
+              >
+                <div className="upload-dropzone-copy">
+                  <strong>Перетащите файл сюда</strong>
+                  <span>или нажмите для выбора</span>
+                </div>
+
+                {selectedFile ? (
+                  <div className="upload-preview">
+                    {previewUrl ? (
+                      <img src={previewUrl} alt={selectedFile.name} className="upload-preview-image" />
+                    ) : (
+                      <div className="upload-preview-video">VID</div>
+                    )}
+
+                    <div className="upload-preview-copy">
+                      <strong>{selectedFile.name}</strong>
+                      <span>{formatFileSize(selectedFile.size)}</span>
+                    </div>
+                  </div>
+                ) : null}
+              </button>
+            </div>
+
+            <label className="admin-field">
+              <span>Название</span>
+              <input
+                value={uploadForm.title}
+                onChange={(event) =>
+                  setUploadForm((current) => ({ ...current, title: event.target.value }))
+                }
+                placeholder="Необязательное название"
+                disabled={uploadingMedia}
+              />
+            </label>
+
+            {selectedSection.slug === "video" ? (
+              <label className="admin-checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={uploadForm.isFeatured}
+                  onChange={(event) =>
+                    setUploadForm((current) => ({ ...current, isFeatured: event.target.checked }))
+                  }
+                  disabled={uploadingMedia}
+                />
+                <span>Featured</span>
+              </label>
+            ) : null}
+
+            <div className="upload-status-block">
+              <div className="upload-status-row">
+                <span className={`upload-status-pill is-${uploadStatus}`}>
+                  {uploadStatusLabels[uploadStatus]}
+                </span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="upload-progress-track" aria-hidden="true">
+                <div
+                  className={`upload-progress-bar is-${uploadStatus}`}
+                  style={{ width: `${uploadProgress}%` }}
+                />
               </div>
             </div>
-          ))}
+
+            <div className="admin-modal-actions">
+              <button type="button" className="secondary-link" onClick={() => setIsUploadOpen(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-link" disabled={uploadingMedia}>
+                {uploadingMedia ? "Загрузка..." : "Upload"}
+              </button>
+            </div>
+          </form>
         </div>
-      </section>
+      ) : null}
     </main>
   );
-}
-
-function sortAlbums(albums: AlbumCard[]): AlbumCard[] {
-  return [...albums].sort((left, right) => {
-    if (left.sectionSlug !== right.sectionSlug) {
-      return left.sectionSlug.localeCompare(right.sectionSlug);
-    }
-
-    return left.title.localeCompare(right.title);
-  });
 }
 
 function getMediaKind(file: File):
@@ -597,35 +783,64 @@ function loadVideo(src: string): Promise<HTMLVideoElement> {
   });
 }
 
-function mockUploadWithProgress(input: {
+function uploadFileWithProgress(input: {
   file: File;
   onProgress: (progress: number) => void;
-}): Promise<{ storageKey: string }> {
+}): Promise<FileUploadResult> {
   return new Promise((resolve, reject) => {
-    let progress = 0;
-    const intervalId = window.setInterval(() => {
-      progress = Math.min(progress + 12, 96);
-      input.onProgress(progress);
-    }, 90);
+    const formData = new FormData();
+    const request = new XMLHttpRequest();
 
-    window.setTimeout(() => {
-      window.clearInterval(intervalId);
+    formData.append("file", input.file);
 
-      try {
-        const normalizedName = input.file.name
-          .normalize("NFKD")
-          .replace(/[^\w.-]+/g, "-")
-          .replace(/-+/g, "-")
-          .replace(/^-|-$/g, "") || "file";
+    request.open("POST", "/api/upload");
+    request.responseType = "json";
 
-        input.onProgress(100);
-        resolve({
-          storageKey: `mock/local/${Date.now()}-${normalizedName}`,
-        });
-      } catch {
-        reject(new Error("Ошибка загрузки файла"));
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable) {
+        return;
       }
-    }, 900);
+
+      input.onProgress(Math.min(Math.round((event.loaded / event.total) * 100), 100));
+    };
+
+    request.onerror = () => {
+      reject(new Error("Ошибка загрузки файла"));
+    };
+
+    request.onload = () => {
+      if (request.status < 200 || request.status >= 300) {
+        const errorMessage =
+          typeof request.response === "object" &&
+          request.response &&
+          "error" in request.response &&
+          typeof request.response.error === "string"
+            ? request.response.error
+            : "Ошибка загрузки файла";
+
+        reject(new Error(errorMessage));
+        return;
+      }
+
+      const response = request.response;
+
+      if (
+        !response ||
+        typeof response !== "object" ||
+        typeof response.publicUrl !== "string" ||
+        typeof response.storageKey !== "string" ||
+        typeof response.mimeType !== "string" ||
+        typeof response.size !== "number"
+      ) {
+        reject(new Error("Ошибка загрузки файла"));
+        return;
+      }
+
+      input.onProgress(100);
+      resolve(response as FileUploadResult);
+    };
+
+    request.send(formData);
   });
 }
 
@@ -637,15 +852,28 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatDuration(durationSec: number | null): string {
+  if (!durationSec) {
+    return "Video";
+  }
+
+  const minutes = Math.floor(durationSec / 60);
+  const seconds = durationSec % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 function translateAdminError(message: string): string {
   const translations: Record<string, string> = {
     "Section not found": "Раздел не найден",
     "Album slug already exists": "Альбом с таким slug уже существует",
     "Invalid album payload": "Некорректные данные альбома",
     "Album not found": "Альбом не найден",
+    "Media not found": "Файл не найден",
     "Invalid media payload": "Некорректные данные файла",
     "Resource already exists": "Такой файл уже существует",
     "Failed to create media": "Не удалось создать файл",
+    "Failed to delete media": "Не удалось удалить файл",
+    "Failed to load album media": "Не удалось загрузить медиа",
   };
 
   return translations[message] ?? message;
