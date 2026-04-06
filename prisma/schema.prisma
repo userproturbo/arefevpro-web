@@ -13,6 +13,12 @@ enum SectionType {
   MUSIC
 }
 
+enum PlaylistType {
+  PLAYLIST
+  RADIO
+  PODCAST
+}
+
 enum MediaKind {
   VIDEO
   IMAGE
@@ -98,4 +104,33 @@ model Video {
   @@index([isFeatured])
   @@index([isPublished])
   @@index([order, createdAt])
+}
+
+model Playlist {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  coverUrl    String?
+  type        PlaylistType @default(PLAYLIST)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tracks      Track[]
+
+  @@index([type, createdAt])
+}
+
+model Track {
+  id          String   @id @default(cuid())
+  playlistId  String
+  playlist    Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  title       String
+  author      String?
+  audioUrl    String
+  duration    Int?
+  description String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([playlistId, order, createdAt])
 }

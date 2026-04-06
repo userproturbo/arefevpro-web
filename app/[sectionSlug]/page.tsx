@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { SectionShell } from "@/components/section-shell";
-import { getSectionPageData, listSections } from "@/lib/services/sections";
+import { ViewerLayout } from "@/components/viewer-layout";
+import { getSectionPageData } from "@/lib/services/sections";
 
 export const dynamic = "force-dynamic";
 
@@ -12,14 +12,11 @@ type SectionPageProps = {
 
 export default async function SectionPage({ params }: SectionPageProps) {
   const { sectionSlug } = await params;
-  const [page, sections] = await Promise.all([
-    getSectionPageData(sectionSlug),
-    listSections(),
-  ]);
+  const page = await getSectionPageData(sectionSlug);
 
   if (!page) {
     notFound();
   }
 
-  return <SectionShell page={page} sections={sections} />;
+  return <ViewerLayout page={page} />;
 }

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { AudioPlayerProvider } from "@/components/audio-player";
+import { VantaBg } from "@/components/vanta-bg";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +15,10 @@ type RootLayoutProps = Readonly<{
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <VantaBg />
+        <AudioPlayerProvider>{children}</AudioPlayerProvider>
+      </body>
     </html>
   );
 }
