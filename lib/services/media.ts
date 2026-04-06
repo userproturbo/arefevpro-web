@@ -12,8 +12,6 @@ const MIME_TYPES_BY_KIND: Record<"VIDEO" | "IMAGE", readonly string[]> = {
 
 const DEFAULT_MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024;
 const DEFAULT_MAX_VIDEO_DURATION_SEC = 10 * 60;
-const SLUG_MAX_ATTEMPTS = 5;
-
 const mediaLimits = {
   maxFileSizeBytes: readPositiveIntEnv("MEDIA_MAX_SIZE_BYTES", DEFAULT_MAX_FILE_SIZE_BYTES),
   maxVideoDurationSec: readPositiveIntEnv(
@@ -366,6 +364,60 @@ export async function getFeaturedVideo(): Promise<FeaturedVideo | null> {
   };
 }
 
+export async function getFeaturedVideos(): Promise<FeaturedVideo[]> {
+  const videos = await prisma.video.findMany({
+    where: {
+      isPublished: true,
+      album: {
+        isPublished: true,
+        section: {
+          type: "VIDEO",
+        },
+      },
+    },
+    orderBy: [{ isFeatured: "desc" }, { order: "asc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      description: true,
+      createdAt: true,
+      videoFile: {
+        select: {
+          publicUrl: true,
+        },
+      },
+      thumbnail: {
+        select: {
+          publicUrl: true,
+        },
+      },
+      album: {
+        select: {
+          slug: true,
+          section: {
+            select: {
+              slug: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return videos.map((video) => ({
+    id: video.id,
+    title: video.title,
+    slug: video.slug,
+    description: video.description,
+    createdAt: video.createdAt,
+    sectionSlug: video.album.section.slug,
+    albumSlug: video.album.slug,
+    videoUrl: video.videoFile.publicUrl,
+    posterUrl: video.thumbnail?.publicUrl ?? null,
+  }));
+}
+
 export async function deleteMediaById(id: string): Promise<DeletedMediaResult> {
   const mediaFile = await prisma.mediaFile.findUnique({
     where: { id },
@@ -637,50 +689,32 @@ async function createVideoWithUniqueSlug(
 ): Promise<CreatedVideo> {
   const baseSlug = slugify(input.title) || "video";
 
-  for (let attempt = 1; attempt <= SLUG_MAX_ATTEMPTS; attempt += 1) {
-    const slug =
-      attempt === 1 ? baseSlug : `${baseSlug}-${createRandomSuffix(6)}`;
-
-    try {
-      if (input.isFeatured) {
-        await clearFeaturedVideos(tx);
-      }
-
-      return await tx.video.create({
-        data: {
-          title: input.title,
-          slug,
-          albumId: input.albumId,
-          videoFileId: input.videoFileId,
-          thumbnailId: input.thumbnailId,
-          isPublished: input.isPublished,
-          isFeatured: input.isFeatured,
-        },
-        include: {
-          album: {
-            select: {
-              id: true,
-              title: true,
-              slug: true,
-            },
-          },
-          videoFile: true,
-          thumbnail: true,
-        },
-      });
-    } catch (error) {
-      if (isPrismaUniqueConstraintError(error) && isSlugConflictError(error)) {
-        continue;
-      }
-
-      throw error;
-    }
+  if (input.isFeatured === true) {
+    await clearFeaturedVideos(tx);
   }
 
-  throw new MediaServiceError(
-    `Could not generate a unique slug for storage key ${input.storageKey}`,
-    409,
-  );
+  return tx.video.create({
+    data: {
+      title: input.title,
+      slug: await generateUniqueVideoSlug(tx, baseSlug),
+      albumId: input.albumId,
+      videoFileId: input.videoFileId,
+      thumbnailId: input.thumbnailId,
+      isPublished: input.isPublished,
+      isFeatured: input.isFeatured,
+    },
+    include: {
+      album: {
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+        },
+      },
+      videoFile: true,
+      thumbnail: true,
+    },
+  });
 }
 
 async function updateExistingVideo(
@@ -693,7 +727,7 @@ async function updateExistingVideo(
     isFeatured: boolean;
   },
 ): Promise<CreatedVideo> {
-  if (input.isFeatured) {
+  if (input.isFeatured === true) {
     await clearFeaturedVideos(tx, videoId);
   }
 
@@ -732,6 +766,28 @@ async function clearFeaturedVideos(
       isFeatured: false,
     },
   });
+}
+
+async function generateUniqueVideoSlug(
+  tx: Prisma.TransactionClient,
+  baseSlug: string,
+): Promise<string> {
+  let slug = baseSlug;
+  let counter = 1;
+
+  while (true) {
+    const existing = await tx.video.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return slug;
+    }
+
+    slug = `${baseSlug}-${counter}`;
+    counter += 1;
+  }
 }
 
 function deriveTitleFromStorageKey(storageKey: string): string {
@@ -842,11 +898,6 @@ function isPrismaValidationError(error: unknown): boolean {
   );
 }
 
-function isSlugConflictError(error: Prisma.PrismaClientKnownRequestError): boolean {
-  const target = Array.isArray(error.meta?.target) ? error.meta.target : [];
-  return target.includes("slug");
-}
-
 async function findOrCreateMediaFile(
   tx: Prisma.TransactionClient,
   input: {
@@ -902,10 +953,6 @@ async function validateStorageState(input: CreateMediaInput): Promise<void> {
       throw new MediaServiceError(`Storage object not found for key: ${key}`, 400);
     }
   }
-}
-
-function createRandomSuffix(length: number): string {
-  return Math.random().toString(36).slice(2, 2 + length);
 }
 
 function readPositiveIntEnv(name: string, fallback: number): number {

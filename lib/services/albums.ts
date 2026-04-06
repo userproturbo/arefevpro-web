@@ -10,6 +10,12 @@ export type CreateAlbumInput = {
   isPublished?: boolean;
 };
 
+export type UpdateAlbumInput = {
+  title?: string;
+  slug?: string;
+  description?: string;
+};
+
 export type AlbumCard = {
   id: string;
   title: string;
@@ -142,6 +148,135 @@ export async function createAlbum(rawInput: unknown): Promise<AlbumCard> {
 
     throw error;
   }
+}
+
+export async function deleteAlbumById(albumId: string): Promise<{ id: string }> {
+  const album = await prisma.album.findUnique({
+    where: { id: albumId },
+    select: { id: true },
+  });
+
+  if (!album) {
+    throw new AlbumServiceError("Album not found", 404);
+  }
+
+  await prisma.album.delete({
+    where: { id: albumId },
+  });
+
+  return { id: albumId };
+}
+
+export async function updateAlbumById(albumId: string, rawInput: unknown): Promise<AlbumCard> {
+  const input = parseUpdateAlbumInput(rawInput);
+
+  const album = await prisma.album.findUnique({
+    where: { id: albumId },
+    select: { id: true },
+  });
+
+  if (!album) {
+    throw new AlbumServiceError("Album not found", 404);
+  }
+
+  const nextSlug = input.slug ? await ensureAlbumSlugAvailable(input.slug, albumId) : undefined;
+
+  try {
+    const updatedAlbum = await prisma.album.update({
+      where: { id: albumId },
+      data: {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(nextSlug !== undefined ? { slug: nextSlug } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      },
+      include: {
+        section: {
+          select: {
+            slug: true,
+          },
+        },
+        cover: {
+          select: {
+            publicUrl: true,
+          },
+        },
+        _count: {
+          select: {
+            videos: true,
+            mediaFiles: {
+              where: {
+                kind: "IMAGE",
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      id: updatedAlbum.id,
+      title: updatedAlbum.title,
+      slug: updatedAlbum.slug,
+      description: updatedAlbum.description,
+      isPublished: updatedAlbum.isPublished,
+      coverUrl: updatedAlbum.cover?.publicUrl ?? null,
+      itemCount: updatedAlbum._count.videos + updatedAlbum._count.mediaFiles,
+      sectionSlug: updatedAlbum.section.slug,
+    };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new AlbumServiceError("Album slug already exists", 409);
+    }
+
+    if (error instanceof Prisma.PrismaClientValidationError) {
+      throw new AlbumServiceError("Invalid album payload", 400);
+    }
+
+    throw error;
+  }
+}
+
+export async function getAlbumById(id: string): Promise<AlbumCard | null> {
+  const album = await prisma.album.findUnique({
+    where: { id },
+    include: {
+      section: {
+        select: {
+          slug: true,
+        },
+      },
+      cover: {
+        select: {
+          publicUrl: true,
+        },
+      },
+      _count: {
+        select: {
+          videos: true,
+          mediaFiles: {
+            where: {
+              kind: "IMAGE",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!album) {
+    return null;
+  }
+
+  return {
+    id: album.id,
+    title: album.title,
+    slug: album.slug,
+    description: album.description,
+    isPublished: album.isPublished,
+    coverUrl: album.cover?.publicUrl ?? null,
+    itemCount: album._count.videos + album._count.mediaFiles,
+    sectionSlug: album.section.slug,
+  };
 }
 
 export async function getAlbumBySlug(slug: string): Promise<AlbumCard | null> {
@@ -481,6 +616,18 @@ function parseCreateAlbumInput(rawInput: unknown): CreateAlbumInput {
   };
 }
 
+function parseUpdateAlbumInput(rawInput: unknown): UpdateAlbumInput {
+  if (!isRecord(rawInput)) {
+    throw new AlbumServiceError("Request body must be a JSON object", 400);
+  }
+
+  return {
+    title: parseOptionalString(rawInput.title, "title"),
+    slug: parseOptionalString(rawInput.slug, "slug"),
+    description: parseOptionalString(rawInput.description, "description"),
+  };
+}
+
 function parseRequiredString(value: unknown, fieldName: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new AlbumServiceError(`${fieldName} is required`, 400);
@@ -514,7 +661,7 @@ function parseOptionalBoolean(value: unknown, fieldName: string): boolean | unde
   return value;
 }
 
-async function ensureAlbumSlugAvailable(value: string): Promise<string> {
+async function ensureAlbumSlugAvailable(value: string, currentAlbumId?: string): Promise<string> {
   const normalizedSlug = slugify(value);
 
   if (!normalizedSlug) {
@@ -526,7 +673,7 @@ async function ensureAlbumSlugAvailable(value: string): Promise<string> {
     select: { id: true },
   });
 
-  if (existingAlbum) {
+  if (existingAlbum && existingAlbum.id !== currentAlbumId) {
     throw new AlbumServiceError("Album slug already exists", 409);
   }
 
