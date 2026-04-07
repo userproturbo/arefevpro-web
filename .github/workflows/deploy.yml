@@ -20,10 +20,17 @@ jobs:
           script: |
             set -e
 
-            cd /home/deploy/www/arefevpro
+            APP_DIR=/home/deploy/www/arefevpro
+            TEMP_DIR=/home/deploy/www/arefevpro_tmp
 
-            echo "===> Pull latest code"
-            git pull origin main
+            echo "===> Prepare temp directory"
+            rm -rf $TEMP_DIR
+            mkdir -p $TEMP_DIR
+
+            echo "===> Clone latest code to temp"
+            git clone https://github.com/userproturbo/arefevpro-web.git $TEMP_DIR
+
+            cd $TEMP_DIR
 
             echo "===> Install dependencies"
             npm install
@@ -31,11 +38,20 @@ jobs:
             echo "===> Prisma generate"
             npx prisma generate
 
-            echo "===> Build app"
+            echo "===> Build app (CRITICAL STEP)"
             npm run build
+
+            echo "===> Build success, deploying..."
+
+            rm -rf $APP_DIR/*
+            cp -r $TEMP_DIR/* $APP_DIR/
+
+            cd $APP_DIR
 
             echo "===> Restart PM2"
             pm2 reload arefevpro --update-env || pm2 start npm --name "arefevpro" -- start
 
             echo "===> Save PM2"
             pm2 save
+
+            echo "===> Deploy finished"
