@@ -16,42 +16,59 @@ jobs:
           host: arefev.pro
           username: deploy
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-
           script: |
             set -e
 
             APP_DIR=/home/deploy/www/arefevpro
             TEMP_DIR=/home/deploy/www/arefevpro_tmp
+            REPO_URL=https://github.com/userproturbo/arefevpro-web.git
 
             echo "===> Prepare temp directory"
-            rm -rf $TEMP_DIR
-            mkdir -p $TEMP_DIR
+            rm -rf "$TEMP_DIR"
+            mkdir -p "$TEMP_DIR"
 
-            echo "===> Clone latest code to temp"
-            git clone https://github.com/userproturbo/arefevpro-web.git $TEMP_DIR
+            echo "===> Clone latest code"
+            git clone --depth 1 "$REPO_URL" "$TEMP_DIR"
 
-            cd $TEMP_DIR
+            echo "===> Create .env from GitHub Secrets"
+            {
+              echo "DATABASE_URL=${{ secrets.DATABASE_URL }}"
+              echo "S3_ENDPOINT=https://storage.yandexcloud.net"
+              echo "S3_BUCKET=arefevpro-storage"
+              echo "S3_REGION=ru-central1"
+              echo "S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }}"
+              echo "S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }}"
+              echo "S3_PUBLIC_URL=https://storage.yandexcloud.net/arefevpro-storage"
+              echo "NODE_ENV=production"
+            } > "$TEMP_DIR/.env"
+
+            cp "$TEMP_DIR/.env" "$TEMP_DIR/.env.production"
+
+            cd "$TEMP_DIR"
 
             echo "===> Install dependencies"
             npm install
 
-            echo "===> Prisma generate"
+            echo "===> Generate Prisma client"
             npx prisma generate
 
-            echo "===> Build app (CRITICAL STEP)"
+            echo "===> Build app"
             npm run build
 
-            echo "===> Build success, deploying..."
+            echo "===> Build success, replace current app"
+            rm -rf "$APP_DIR"
+            mkdir -p "$APP_DIR"
+            cp -R "$TEMP_DIR"/. "$APP_DIR"/
 
-            rm -rf $APP_DIR/*
-            cp -r $TEMP_DIR/* $APP_DIR/
-
-            cd $APP_DIR
+            cd "$APP_DIR"
 
             echo "===> Restart PM2"
             pm2 reload arefevpro --update-env || pm2 start npm --name "arefevpro" -- start
 
             echo "===> Save PM2"
             pm2 save
+
+            echo "===> Cleanup temp directory"
+            rm -rf "$TEMP_DIR"
 
             echo "===> Deploy finished"
