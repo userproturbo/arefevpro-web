@@ -11,17 +11,11 @@ type HeroVideo = {
 };
 
 type HomeHeroProps = {
-  videos: HeroVideo[];
+  video: HeroVideo | null;
 };
 
-export function HomeHero({ videos }: HomeHeroProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+export function HomeHero({ video }: HomeHeroProps) {
   const [droneVisible, setDroneVisible] = useState(false);
-
-  if (!videos.length) {
-    return null;
-  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -31,37 +25,34 @@ export function HomeHero({ videos }: HomeHeroProps) {
     return () => window.clearTimeout(timer);
   }, []);
 
-  function nextVideo() {
-    if (videos.length < 2 || isTransitioning) {
-      return;
-    }
-
-    setIsTransitioning(true);
-
-    window.setTimeout(() => {
-      setCurrentIndex((previous) => (previous + 1) % videos.length);
-      setIsTransitioning(false);
-    }, 300);
-  }
-
-  const currentVideo = videos[currentIndex] ?? null;
-
   return (
     <main className="hero-page">
       <div className="hero-media-layer" aria-hidden="true">
         <div className="hero-fallback-layer" />
-        <video
-          key={currentVideo.id}
-          className={`hero-video ${isTransitioning ? "fade-out" : "fade-in"}`}
-          src={currentVideo.videoUrl}
-          poster={currentVideo.posterUrl ?? undefined}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          onClick={nextVideo}
-        />
+        {video ? (
+          <video
+            key={video.id}
+            className="hero-video fade-in"
+            src={video.videoUrl}
+            poster={video.posterUrl ?? undefined}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <div
+            className="hero-fallback"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(5, 5, 5, 0.3), rgba(5, 5, 5, 0.6)), url('/img/photo.png')",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              backgroundSize: "cover",
+            }}
+          />
+        )}
       </div>
 
       <div className="hero-overlay" aria-hidden="true" />

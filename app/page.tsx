@@ -1,10 +1,10 @@
 import { HomeHero } from "@/components/home-hero";
-import { getFeaturedVideos } from "@/lib/services/media";
+import { getFeaturedVideo } from "@/lib/services/media";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const featuredVideos = await getFeaturedVideos();
+  const featuredVideo = await getFeaturedVideo();
 
-  return <HomeHero videos={featuredVideos} />;
+  return <HomeHero video={featuredVideo} />;
 }
