@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  cleanupDirectUpload,
+  getUploadMediaKind,
+  readMediaFileMetadata,
+  uploadMediaFileDirect,
+  validateMediaFileBeforeUpload,
+} from "@/lib/media-upload-client";
+import { formatFileSize } from "@/lib/media-upload";
 import type { AdminAlbumCard, AdminMediaItem } from "@/lib/services/albums";
 import type { SectionSummary } from "@/lib/services/sections";
 
@@ -20,13 +28,6 @@ type UploadFormState = {
 };
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
-
-type FileUploadResult = {
-  storageKey: string;
-  publicUrl: string;
-  mimeType: string;
-  size: number;
-};
 
 const uploadStatusLabels: Record<UploadStatus, string> = {
   idle: "Ожидание",
@@ -247,19 +248,19 @@ export function AdminPanel({ sections }: AdminPanelProps) {
       return;
     }
 
-    const kind = getMediaKind(selectedFile);
+    const validationError = validateMediaFileBeforeUpload(selectedFile, selectedSection.slug);
+
+    if (validationError) {
+      setUploadStatus("error");
+      setUploadMessage(validationError);
+      return;
+    }
+
+    const kind = getUploadMediaKind(selectedFile);
 
     if (!kind) {
       setUploadStatus("error");
       setUploadMessage("Поддерживаются только файлы MP4, WEBM, JPEG и PNG");
-      return;
-    }
-
-    if (selectedSection.slug !== kind.sectionSlug) {
-      setUploadStatus("error");
-      setUploadMessage(
-        `${kind.label} можно загружать только в раздел ${kind.sectionSlug.toUpperCase()}`,
-      );
       return;
     }
 
@@ -269,43 +270,61 @@ export function AdminPanel({ sections }: AdminPanelProps) {
     setUploadMessage(null);
 
     try {
-      const uploadedFile = await uploadFileWithProgress({
-        file: selectedFile,
-        onProgress: (progress) => setUploadProgress(progress),
-      });
+      let uploadedFile: Awaited<ReturnType<typeof uploadMediaFileDirect>> | null = null;
 
-      const metadata = await readFileMetadata(selectedFile, kind.value);
-      const mediaCreateResponse = await fetch("/api/media/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          kind: kind.value,
-          storageKey: uploadedFile.storageKey,
-          publicUrl: uploadedFile.publicUrl,
-          mimeType: uploadedFile.mimeType,
-          sizeBytes: uploadedFile.size,
-          width: metadata.width,
-          height: metadata.height,
-          durationSec: metadata.durationSec,
+      try {
+        uploadedFile = await uploadMediaFileDirect({
+          file: selectedFile,
           albumId: selectedAlbum.id,
-          title: uploadForm.title || selectedFile.name.replace(/\.[^.]+$/, ""),
-          isPublished: true,
-          isFeatured: kind.value === "VIDEO" ? uploadForm.isFeatured : undefined,
-        }),
-      });
+          kind: kind.value,
+          onProgress: (progress) => setUploadProgress(progress),
+        });
 
-      const mediaPayload = (await mediaCreateResponse.json()) as
-        | { error?: string }
-        | {
-            mediaFile: { id: string };
-          };
+        const metadata = await readMediaFileMetadata(selectedFile, kind.value);
+        const mediaCreateResponse = await fetch("/api/media/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            kind: kind.value,
+            storageKey: uploadedFile.storageKey,
+            publicUrl: uploadedFile.publicUrl,
+            mimeType: uploadedFile.mimeType,
+            sizeBytes: uploadedFile.size,
+            width: metadata.width,
+            height: metadata.height,
+            durationSec: metadata.durationSec,
+            albumId: selectedAlbum.id,
+            title: uploadForm.title || selectedFile.name.replace(/\.[^.]+$/, ""),
+            isPublished: true,
+            isFeatured: kind.value === "VIDEO" ? uploadForm.isFeatured : undefined,
+          }),
+        });
 
-      if (!mediaCreateResponse.ok || "error" in mediaPayload || !("mediaFile" in mediaPayload)) {
-        throw new Error(
-          translateAdminError(("error" in mediaPayload && mediaPayload.error) || "Не удалось создать файл"),
-        );
+        const mediaPayload = (await mediaCreateResponse.json()) as
+          | { error?: string }
+          | {
+              mediaFile: { id: string };
+            };
+
+        if (!mediaCreateResponse.ok || "error" in mediaPayload || !("mediaFile" in mediaPayload)) {
+          throw new Error(
+            translateAdminError(
+              ("error" in mediaPayload && mediaPayload.error) || "Не удалось создать файл",
+            ),
+          );
+        }
+      } catch (error) {
+        if (uploadedFile) {
+          try {
+            await cleanupDirectUpload(uploadedFile.storageKey);
+          } catch (cleanupError) {
+            console.error("Failed to cleanup uploaded file", cleanupError);
+          }
+        }
+
+        throw error;
       }
 
       setUploadForm({
@@ -720,136 +739,6 @@ export function AdminPanel({ sections }: AdminPanelProps) {
       ) : null}
     </main>
   );
-}
-
-function getMediaKind(file: File):
-  | { value: "VIDEO"; sectionSlug: "video"; label: string }
-  | { value: "IMAGE"; sectionSlug: "photo"; label: string }
-  | null {
-  if (file.type === "video/mp4" || file.type === "video/webm") {
-    return { value: "VIDEO", sectionSlug: "video", label: "Видео" };
-  }
-
-  if (file.type === "image/jpeg" || file.type === "image/png") {
-    return { value: "IMAGE", sectionSlug: "photo", label: "Изображения" };
-  }
-
-  return null;
-}
-
-async function readFileMetadata(
-  file: File,
-  kind: "VIDEO" | "IMAGE",
-): Promise<{ width: number | null; height: number | null; durationSec: number | null }> {
-  const objectUrl = URL.createObjectURL(file);
-
-  try {
-    if (kind === "IMAGE") {
-      const image = await loadImage(objectUrl);
-      return {
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-        durationSec: null,
-      };
-    }
-
-    const video = await loadVideo(objectUrl);
-    return {
-      width: video.videoWidth,
-      height: video.videoHeight,
-      durationSec: Math.round(video.duration),
-    };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Не удалось прочитать параметры изображения"));
-    image.src = src;
-  });
-}
-
-function loadVideo(src: string): Promise<HTMLVideoElement> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    video.onloadedmetadata = () => resolve(video);
-    video.onerror = () => reject(new Error("Не удалось прочитать параметры видео"));
-    video.src = src;
-  });
-}
-
-function uploadFileWithProgress(input: {
-  file: File;
-  onProgress: (progress: number) => void;
-}): Promise<FileUploadResult> {
-  return new Promise((resolve, reject) => {
-    const formData = new FormData();
-    const request = new XMLHttpRequest();
-
-    formData.append("file", input.file);
-
-    request.open("POST", "/api/upload");
-    request.responseType = "json";
-
-    request.upload.onprogress = (event) => {
-      if (!event.lengthComputable) {
-        return;
-      }
-
-      input.onProgress(Math.min(Math.round((event.loaded / event.total) * 100), 100));
-    };
-
-    request.onerror = () => {
-      reject(new Error("Ошибка загрузки файла"));
-    };
-
-    request.onload = () => {
-      if (request.status < 200 || request.status >= 300) {
-        const errorMessage =
-          typeof request.response === "object" &&
-          request.response &&
-          "error" in request.response &&
-          typeof request.response.error === "string"
-            ? request.response.error
-            : "Ошибка загрузки файла";
-
-        reject(new Error(errorMessage));
-        return;
-      }
-
-      const response = request.response;
-
-      if (
-        !response ||
-        typeof response !== "object" ||
-        typeof response.publicUrl !== "string" ||
-        typeof response.storageKey !== "string" ||
-        typeof response.mimeType !== "string" ||
-        typeof response.size !== "number"
-      ) {
-        reject(new Error("Ошибка загрузки файла"));
-        return;
-      }
-
-      input.onProgress(100);
-      resolve(response as FileUploadResult);
-    };
-
-    request.send(formData);
-  });
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) {
-    return `${Math.round(bytes / 1024)} KB`;
-  }
-
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatDuration(durationSec: number | null): string {

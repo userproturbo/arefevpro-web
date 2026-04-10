@@ -1,5 +1,5 @@
 :root {
-  --bg: #050505;
+  --bg: #0b0b0c;
   --bg-soft: #101010;
   --panel: #141414;
   --panel-soft: #1a1a1a;
@@ -20,7 +20,10 @@ body {
   margin: 0;
   height: 100%;
   min-height: 100%;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.03), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.02), transparent 50%),
+    var(--bg);
   color: var(--text);
 }
 
@@ -256,7 +259,7 @@ audio {
 }
 
 .viewer-page {
-  height: 100vh;
+  min-height: 100vh;
   position: relative;
   z-index: 10;
   display: flex;
@@ -264,14 +267,37 @@ audio {
   background: transparent;
 }
 
-.viewer-layout {
+.page-shell {
   flex: 1;
-  display: flex;
-  gap: 12px;
+  min-height: 0;
+  padding: 24px;
+}
+
+.page-surface {
+  max-width: 1400px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  background: rgba(15, 15, 18, 0.6);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.card {
+  background: rgba(20, 20, 24, 0.6);
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.viewer-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
   min-height: 0;
   margin-top: 60px;
-  padding: 0 12px 12px;
-  overflow: hidden;
+  height: calc(100vh - 156px);
 }
 
 .viewer-header {
@@ -318,7 +344,7 @@ audio {
 }
 
 .viewer-sidebar-head {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .sidebar-back {
@@ -334,7 +360,7 @@ audio {
 }
 
 .back-label {
-  margin-bottom: 20px;
+  margin-bottom: 8px;
   opacity: 0.6;
   cursor: pointer;
 }
@@ -343,7 +369,7 @@ audio {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin-right: 20px;
+  margin-right: 0;
 }
 
 .viewer-list + .viewer-list {
@@ -354,8 +380,8 @@ audio {
 .viewer-empty-block {
   width: 100%;
   display: block;
-  border: 1px solid var(--line);
-  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(20, 20, 24, 0.75);
   padding: 16px;
   text-align: left;
   color: var(--text);
@@ -398,7 +424,7 @@ audio {
   height: 140px;
   margin-bottom: 12px;
   background: #090909;
-  border-radius: 6px;
+  border-radius: 12px;
   overflow: hidden;
   aspect-ratio: auto;
 }
@@ -411,7 +437,10 @@ audio {
 }
 
 .album-card {
-  margin-top: 80px;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, outline-color 0.2s ease;
 }
 
 .viewer-album-card--photo {
@@ -429,7 +458,9 @@ audio {
   isolation: isolate;
   cursor: pointer;
   transform: translateY(0);
-  transition: transform 0.24s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, outline-color 0.2s ease;
+  outline: 2px solid transparent;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
 }
 
 .viewer-album-card--photo.album-card {
@@ -491,18 +522,20 @@ audio {
   transform: translateY(-4px);
 }
 
+.album-card.active {
+  outline: 2px solid rgba(255, 255, 255, 0.2);
+}
+
 .viewer-album-card--photo:hover .album-preview img {
   transform: scale(1.05);
 }
 
 .viewer-sidebar {
   position: relative;
-  width: 380px;
-  flex: 0 0 620px;
-
-  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
   height: 100%;
-  padding: 20px 0 20px 20px;
+  padding: 16px;
   margin-right: 0;
   overflow-y: auto;
   scroll-behavior: smooth;
@@ -523,10 +556,10 @@ audio {
 .photo-gallery-grid {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   max-width: none;
   padding: 0;
-  margin-right: 20px;
+  margin-right: 0;
 }
 
 .viewer-sidebar::-webkit-scrollbar {
@@ -580,12 +613,17 @@ audio {
 }
 
 .viewer-main {
-  flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
+  align-items: stretch;
+  justify-content: stretch;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  padding: 16px;
+}
+
+.viewer-main > * {
+  width: 100%;
 }
 
 .media-item {
@@ -754,6 +792,7 @@ audio {
   padding: 0;
   border: 0;
   background: transparent;
+  width: 100%;
 }
 
 .viewer-image-button:focus-visible {
@@ -884,11 +923,11 @@ audio {
 .viewer-empty {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   height: 100%;
-  opacity: 0.6;
-  text-align: center;
+  opacity: 0.8;
+  text-align: left;
 }
 
 .photo-mobile-page {
@@ -898,13 +937,13 @@ audio {
 .photo-mobile-shell {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 88px 0 24px;
+  gap: 16px;
+  padding: 88px 0 0;
 }
 
 .photo-mobile-slider {
   overflow: visible;
-  padding-left: 12px;
+  padding-left: 0;
 }
 
 .photo-mobile-slide {
@@ -913,6 +952,11 @@ audio {
 
 .photo-mobile-card {
   width: 100%;
+}
+
+.photo-mobile-slider-card,
+.photo-mobile-description-card {
+  padding: 16px;
 }
 
 .dots-indicator {
@@ -935,28 +979,33 @@ audio {
   transform: scale(1.2);
 }
 
-.album-description-block {
-  padding: 0 20px;
-  text-align: left;
-  transition: opacity 0.3s ease;
+.album-description {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.album-description-block h2 {
-  margin: 0 0 10px;
-  font-family: var(--serif);
-  font-size: clamp(28px, 8vw, 42px);
-  font-weight: 400;
-}
-
-.album-description-block p {
+.album-description h2 {
   margin: 0;
-  color: var(--muted);
-  line-height: 1.7;
+  font-size: 20px;
+  font-weight: 500;
 }
 
-.album-description-panel {
-  max-width: 680px;
-  margin: auto;
+.album-description p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.viewer-main-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 100%;
 }
 
 .muted {
@@ -1622,7 +1671,8 @@ main {
 @media (max-width: 1100px) {
   .editorial-shell,
   .viewer-layout {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    height: auto;
   }
 
   .editorial-sidebar {
@@ -1634,8 +1684,8 @@ main {
 
   .viewer-sidebar {
     width: 100%;
-    flex-basis: auto;
-    padding: 24px 0 24px 24px;
+    padding: 16px;
+    max-height: none;
   }
 
   .admin-main {
@@ -1661,8 +1711,13 @@ main {
     padding-right: 20px;
   }
 
-  .viewer-layout {
-    padding: 0 8px 8px;
+  .page-shell {
+    padding: 12px;
+  }
+
+  .page-surface {
+    padding: 16px;
+    border-radius: 16px;
   }
 
   .photo-mobile-page {

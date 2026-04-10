@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SiteNavigation } from "@/components/site-navigation";
+import {
+  cleanupDirectUpload,
+  getUploadMediaKind,
+  readMediaFileMetadata,
+  uploadMediaFileDirect,
+  validateMediaFileBeforeUpload,
+} from "@/lib/media-upload-client";
 import type { AdminAlbumCard, AdminMediaItem } from "@/lib/services/albums";
 import type { SectionSummary } from "@/lib/services/sections";
 
@@ -266,42 +273,75 @@ export function AdminSectionManager({ currentSection }: AdminSectionManagerProps
       return;
     }
 
+    for (const file of selectedFiles) {
+      const validationError = validateMediaFileBeforeUpload(file, currentSection.slug);
+
+      if (validationError) {
+        setUploadMessage(validationError);
+        return;
+      }
+    }
+
     setUploading(true);
     setUploadMessage(null);
 
     try {
       for (const [fileIndex, file] of selectedFiles.entries()) {
-        const uploadResult = await uploadFile(file);
-        const metadata = await readFileMetadata(file);
-        const kind = file.type.startsWith("video/") ? "VIDEO" : "IMAGE";
-        const response = await fetch("/api/media/create", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            kind,
-            storageKey: uploadResult.storageKey,
-            publicUrl: uploadResult.publicUrl,
-            mimeType: uploadResult.mimeType,
-            sizeBytes: uploadResult.size,
-            width: metadata.width,
-            height: metadata.height,
-            durationSec: metadata.durationSec,
+        const kind = getUploadMediaKind(file)?.value;
+
+        if (!kind) {
+          throw new Error("Поддерживаются только файлы MP4, WEBM, JPEG и PNG");
+        }
+
+        let uploadResult: Awaited<ReturnType<typeof uploadMediaFileDirect>> | null = null;
+
+        try {
+          uploadResult = await uploadMediaFileDirect({
+            file,
             albumId: selectedAlbum.id,
-            title:
-              selectedFiles.length === 1 && uploadForm.title
-                ? uploadForm.title
-                : file.name.replace(/\.[^.]+$/, ""),
-            isPublished: true,
-            isFeatured: kind === "VIDEO" && fileIndex === 0 ? uploadForm.isFeatured : undefined,
-          }),
-        });
+            kind,
+          });
 
-        const payload = (await response.json()) as { error?: string };
+          const metadata = await readMediaFileMetadata(file, kind);
+          const response = await fetch("/api/media/create", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              kind,
+              storageKey: uploadResult.storageKey,
+              publicUrl: uploadResult.publicUrl,
+              mimeType: uploadResult.mimeType,
+              sizeBytes: uploadResult.size,
+              width: metadata.width,
+              height: metadata.height,
+              durationSec: metadata.durationSec,
+              albumId: selectedAlbum.id,
+              title:
+                selectedFiles.length === 1 && uploadForm.title
+                  ? uploadForm.title
+                  : file.name.replace(/\.[^.]+$/, ""),
+              isPublished: true,
+              isFeatured: kind === "VIDEO" && fileIndex === 0 ? uploadForm.isFeatured : undefined,
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error(payload.error || "Не удалось загрузить медиа");
+          const payload = (await response.json()) as { error?: string };
+
+          if (!response.ok) {
+            throw new Error(payload.error || "Не удалось загрузить медиа");
+          }
+        } catch (error) {
+          if (uploadResult) {
+            try {
+              await cleanupDirectUpload(uploadResult.storageKey);
+            } catch (cleanupError) {
+              console.error("Failed to cleanup uploaded file", cleanupError);
+            }
+          }
+
+          throw error;
         }
       }
 
@@ -602,77 +642,4 @@ export function AdminSectionManager({ currentSection }: AdminSectionManagerProps
       </div>
     </main>
   );
-}
-
-type UploadResult = {
-  storageKey: string;
-  publicUrl: string;
-  mimeType: string;
-  size: number;
-};
-
-function uploadFile(file: File): Promise<UploadResult> {
-  return new Promise((resolve, reject) => {
-    const request = new XMLHttpRequest();
-    const formData = new FormData();
-
-    formData.append("file", file);
-    request.open("POST", "/api/upload");
-    request.responseType = "json";
-
-    request.onerror = () => reject(new Error("Ошибка загрузки файла"));
-    request.onload = () => {
-      if (request.status < 200 || request.status >= 300) {
-        reject(new Error(request.response?.error || "Ошибка загрузки файла"));
-        return;
-      }
-
-      resolve(request.response as UploadResult);
-    };
-
-    request.send(formData);
-  });
-}
-
-async function readFileMetadata(file: File) {
-  const objectUrl = URL.createObjectURL(file);
-
-  try {
-    if (file.type.startsWith("image/")) {
-      const image = await loadImage(objectUrl);
-      return {
-        width: image.naturalWidth,
-        height: image.naturalHeight,
-        durationSec: null,
-      };
-    }
-
-    const video = await loadVideo(objectUrl);
-    return {
-      width: video.videoWidth,
-      height: video.videoHeight,
-      durationSec: Math.round(video.duration),
-    };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Не удалось прочитать изображение"));
-    image.src = src;
-  });
-}
-
-function loadVideo(src: string): Promise<HTMLVideoElement> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement("video");
-    video.preload = "metadata";
-    video.onloadedmetadata = () => resolve(video);
-    video.onerror = () => reject(new Error("Не удалось прочитать видео"));
-    video.src = src;
-  });
 }

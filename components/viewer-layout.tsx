@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlbumMobileSlider } from "@/components/photo/album-mobile-slider";
+import { AlbumDescription } from "@/components/photo/album-description";
 import { SiteNavigation } from "@/components/site-navigation";
 import type { PhotoListItem, VideoListItem } from "@/lib/services/albums";
 import type { SectionPageAlbum, SectionPageData } from "@/lib/services/sections";
@@ -180,164 +181,167 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     <main className="viewer-page">
       <SiteNavigation className="viewer-header" />
 
-      {page.section.type === "PHOTO" && isMobile ? (
-        <div className="photo-mobile-page">
-          <AlbumMobileSlider albums={page.albums} />
-        </div>
-      ) : (
-        <div className="viewer-layout">
-          <aside
-            className={`viewer-sidebar ${isGallerySidebar ? "photo-gallery-sidebar" : ""}`}
-          >
-          <div className="viewer-sidebar-head">
-            {isAlbumOpen ? (
-              <button type="button" className="sidebar-back back-label" onClick={closeAlbum}>
-                ← Альбомы
-              </button>
-            ) : null}
-          </div>
-
-          {!isAlbumOpen ? (
-            <div className="viewer-list">
-              {page.albums.length > 0 ? (
-                page.albums.map((album) => (
-                  (() => {
-                    const firstAlbumVideo = album.videos?.[0] ?? null;
-                    const previewImage =
-                      page.section.type === "VIDEO"
-                        ? album.coverUrl ??
-                          album.videos?.find((video) => video.thumbnailUrl)?.thumbnailUrl ??
-                          album.videos?.[0]?.thumbnailUrl ??
-                          null
-                        : album.photos?.[0]?.thumbnailUrl ??
-                          album.photos?.[0]?.imageUrl ??
-                          "/img/photo.png";
-                    const shouldRenderAlbumPreviewVideo =
-                      page.section.type === "VIDEO" &&
-                      !album.coverUrl &&
-                      !album.videos?.find((video) => video.thumbnailUrl)?.thumbnailUrl &&
-                      !album.videos?.[0]?.thumbnailUrl &&
-                      Boolean(firstAlbumVideo?.videoUrl);
-
-                    return (
-                      <button
-                        key={album.id}
-                        type="button"
-                        className={`viewer-album-card album-card ${
-                          page.section.type === "PHOTO" || page.section.type === "VIDEO"
-                            ? "viewer-album-card--photo"
-                            : ""
-                        }`}
-                        onClick={() => openAlbum(album.id)}
-                        onMouseEnter={() => setActiveAlbumId(album.id)}
-                        onFocus={() => setActiveAlbumId(album.id)}
-                      >
-                        {page.section.type === "PHOTO" || page.section.type === "VIDEO" ? (
-                          <>
-                            <div className="album-preview">
-                              {shouldRenderAlbumPreviewVideo && firstAlbumVideo ? (
-                                <video
-                                  src={firstAlbumVideo.videoUrl}
-                                  autoPlay
-                                  muted
-                                  loop
-                                  playsInline
-                                  preload="metadata"
-                                  aria-label={album.title}
-                                />
-                              ) : previewImage ? (
-                                <img src={previewImage} alt={album.title} />
-                              ) : (
-                                <div className="album-preview-fallback" aria-hidden="true" />
-                              )}
-                            </div>
-                            <div className="album-overlay">
-                              <strong>{album.title}</strong>
-                              <span>
-                                {album.itemCount} {page.section.type === "VIDEO" ? "videos" : "photos"}
-                              </span>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <strong>{album.title}</strong>
-                            <span>{album.description ?? `${album.itemCount} материалов`}</span>
-                          </>
-                        )}
-                      </button>
-                    );
-                  })()
-                ))
-              ) : (
-                <div className="viewer-empty-block">В этом разделе пока нет альбомов.</div>
-              )}
+      <div className="page-shell">
+        <div className="page-surface">
+          {page.section.type === "PHOTO" && isMobile ? (
+            <div className="photo-mobile-page">
+              <AlbumMobileSlider albums={page.albums} />
             </div>
           ) : (
-            <div className={`viewer-list ${isGallerySidebar ? "photo-gallery-grid" : ""}`}>
-              {media.length > 0 ? (
-                media.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`media-item ${selectedMediaId === item.id ? "is-active" : ""}`}
-                    onClick={() => setSelectedMediaId(item.id)}
-                    onMouseEnter={() => {
-                      if (item.kind === "VIDEO") {
-                        setHoveredVideoId(item.id);
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      if (item.kind === "VIDEO") {
-                        setHoveredVideoId((current) => (current === item.id ? null : current));
-                      }
-                    }}
-                  >
-                    <div className="media-block-preview">
-                      {item.kind === "VIDEO" ? (
-                        <video
-                          ref={(element) => {
-                            previewRefs.current[item.id] = element;
+            <div className="viewer-layout">
+              <aside
+                className={`viewer-sidebar card ${isGallerySidebar ? "photo-gallery-sidebar" : ""}`}
+              >
+                <div className="viewer-sidebar-head">
+                  {isAlbumOpen ? (
+                    <button type="button" className="sidebar-back back-label" onClick={closeAlbum}>
+                      ← Альбомы
+                    </button>
+                  ) : null}
+                </div>
+
+                {!isAlbumOpen ? (
+                  <div className="viewer-list">
+                    {page.albums.length > 0 ? (
+                      page.albums.map((album) => {
+                        const firstAlbumVideo = album.videos?.[0] ?? null;
+                        const previewImage =
+                          page.section.type === "VIDEO"
+                            ? album.coverUrl ??
+                              album.videos?.find((video) => video.thumbnailUrl)?.thumbnailUrl ??
+                              album.videos?.[0]?.thumbnailUrl ??
+                              null
+                            : album.photos?.[0]?.thumbnailUrl ??
+                              album.photos?.[0]?.imageUrl ??
+                              "/img/photo.png";
+                        const shouldRenderAlbumPreviewVideo =
+                          page.section.type === "VIDEO" &&
+                          !album.coverUrl &&
+                          !album.videos?.find((video) => video.thumbnailUrl)?.thumbnailUrl &&
+                          !album.videos?.[0]?.thumbnailUrl &&
+                          Boolean(firstAlbumVideo?.videoUrl);
+                        const isActiveAlbum = activeAlbum?.id === album.id;
+
+                        return (
+                          <button
+                            key={album.id}
+                            type="button"
+                            className={`viewer-album-card album-card ${
+                              page.section.type === "PHOTO" || page.section.type === "VIDEO"
+                                ? "viewer-album-card--photo"
+                                : ""
+                            } ${isActiveAlbum ? "active" : ""}`}
+                            onClick={() => openAlbum(album.id)}
+                            onMouseEnter={() => setActiveAlbumId(album.id)}
+                            onFocus={() => setActiveAlbumId(album.id)}
+                          >
+                            {page.section.type === "PHOTO" || page.section.type === "VIDEO" ? (
+                              <>
+                                <div className="album-preview">
+                                  {shouldRenderAlbumPreviewVideo && firstAlbumVideo ? (
+                                    <video
+                                      src={firstAlbumVideo.videoUrl}
+                                      autoPlay
+                                      muted
+                                      loop
+                                      playsInline
+                                      preload="metadata"
+                                      aria-label={album.title}
+                                    />
+                                  ) : previewImage ? (
+                                    <img src={previewImage} alt={album.title} />
+                                  ) : (
+                                    <div className="album-preview-fallback" aria-hidden="true" />
+                                  )}
+                                </div>
+                                <div className="album-overlay">
+                                  <strong>{album.title}</strong>
+                                  <span>
+                                    {album.itemCount} {page.section.type === "VIDEO" ? "videos" : "photos"}
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <strong>{album.title}</strong>
+                                <span>{album.description ?? `${album.itemCount} материалов`}</span>
+                              </>
+                            )}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="viewer-empty-block">В этом разделе пока нет альбомов.</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className={`viewer-list ${isGallerySidebar ? "photo-gallery-grid" : ""}`}>
+                    {media.length > 0 ? (
+                      media.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`media-item ${selectedMediaId === item.id ? "is-active" : ""}`}
+                          onClick={() => setSelectedMediaId(item.id)}
+                          onMouseEnter={() => {
+                            if (item.kind === "VIDEO") {
+                              setHoveredVideoId(item.id);
+                            }
                           }}
-                          src={item.url}
-                          poster={item.previewUrl}
-                          muted
-                          loop
-                          playsInline
-                          preload="metadata"
-                        />
-                      ) : (
-                        <img src={item.previewUrl} alt={item.title} />
-                      )}
-                    </div>
-                    <div className="media-title">{item.title}</div>
-                  </button>
-                ))
-              ) : (
-                <div className="viewer-empty-block">В этом альбоме пока нет медиа.</div>
-              )}
+                          onMouseLeave={() => {
+                            if (item.kind === "VIDEO") {
+                              setHoveredVideoId((current) => (current === item.id ? null : current));
+                            }
+                          }}
+                        >
+                          <div className="media-block-preview">
+                            {item.kind === "VIDEO" ? (
+                              <video
+                                ref={(element) => {
+                                  previewRefs.current[item.id] = element;
+                                }}
+                                src={item.url}
+                                poster={item.previewUrl}
+                                muted
+                                loop
+                                playsInline
+                                preload="metadata"
+                              />
+                            ) : (
+                              <img src={item.previewUrl} alt={item.title} />
+                            )}
+                          </div>
+                          <div className="media-title">{item.title}</div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="viewer-empty-block">В этом альбоме пока нет медиа.</div>
+                    )}
+                  </div>
+                )}
+              </aside>
+
+              <section className="viewer-main card">
+                {page.section.type === "VIDEO" ? (
+                  <VideoContent media={selectedMedia?.kind === "VIDEO" ? selectedMedia : null} />
+                ) : null}
+
+                {page.section.type === "PHOTO" ? (
+                  <PhotoContent
+                    album={selectedAlbum ?? activeAlbum}
+                    media={displayedPhoto}
+                    onOpenLightbox={() => setLightboxOpen(true)}
+                  />
+                ) : null}
+
+                {page.section.type === "BLOG" || page.section.type === "MUSIC" ? (
+                  <PlaceholderContent sectionTitle={page.section.title} album={previewAlbum} />
+                ) : null}
+              </section>
             </div>
           )}
-          </aside>
-
-          <section className="viewer-main">
-            {page.section.type === "VIDEO" ? (
-              <VideoContent media={selectedMedia?.kind === "VIDEO" ? selectedMedia : null} />
-            ) : null}
-
-            {page.section.type === "PHOTO" ? (
-              selectedAlbum ? (
-                <PhotoContent media={displayedPhoto} onOpenLightbox={() => setLightboxOpen(true)} />
-              ) : (
-                <AlbumDescriptionPanel album={activeAlbum} />
-              )
-            ) : null}
-
-            {page.section.type === "BLOG" || page.section.type === "MUSIC" ? (
-              <PlaceholderContent sectionTitle={page.section.title} album={previewAlbum} />
-            ) : null}
-          </section>
         </div>
-      )}
+      </div>
 
       {lightboxOpen && displayedPhoto?.kind === "PHOTO" ? (
         <div
@@ -395,26 +399,6 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
   );
 }
 
-function AlbumDescriptionPanel({
-  album,
-}: {
-  album: SectionPageAlbum | null;
-}) {
-  if (!album) {
-    return null;
-  }
-
-  return (
-    <div className="placeholder-panel album-description-panel">
-      <p className="editorial-kicker">Photo</p>
-      <h2>{album.title}</h2>
-      <p className={album.description ? undefined : "muted"}>
-        {album.description ?? "Описание скоро появится"}
-      </p>
-    </div>
-  );
-}
-
 function VideoContent({
   media,
 }: {
@@ -447,9 +431,11 @@ function VideoContent({
 }
 
 function PhotoContent({
+  album,
   media,
   onOpenLightbox,
 }: {
+  album: SectionPageAlbum | null;
   media: (PhotoListItem & { kind: "PHOTO"; url: string; previewUrl: string }) | null;
   onOpenLightbox: () => void;
 }) {
@@ -460,9 +446,11 @@ function PhotoContent({
           <img key={media.id} src={media.url} alt={media.title} className="viewer-image" />
         </button>
       ) : (
-        <div className="placeholder-panel viewer-empty">
-          <h3>Фото пока не выбрано</h3>
-          <p>Откройте альбом слева.</p>
+        <div className="viewer-main-placeholder">
+          <AlbumDescription album={album} />
+          <p className="muted">
+            {album ? "Выберите альбом слева, чтобы открыть фотографии." : "Фотоальбомы скоро появятся."}
+          </p>
         </div>
       )}
     </>

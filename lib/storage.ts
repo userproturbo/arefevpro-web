@@ -1,6 +1,9 @@
-import { HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { s3 } from "@/lib/s3";
+import type { UploadMediaKind } from "@/lib/media-upload";
 
 const REQUIRED_ENV_VARS = [
   "S3_ENDPOINT",
@@ -53,6 +56,18 @@ export async function generateUploadUrl(
   });
 }
 
+export function buildMediaStorageKey(input: {
+  kind: UploadMediaKind;
+  albumId: string;
+  fileName: string;
+}): string {
+  const safeFileName = sanitizeFileName(input.fileName);
+  const extension = path.extname(safeFileName);
+  const baseName = path.basename(safeFileName, extension) || "file";
+
+  return `media/${input.kind.toLowerCase()}/${input.albumId}/${Date.now()}-${randomUUID()}-${baseName}${extension}`;
+}
+
 export function getPublicUrl(key: string): string {
   const normalizedKey = key.replace(/^\/+/, "");
 
@@ -80,6 +95,30 @@ export async function storageObjectExists(key: string): Promise<boolean> {
 
     throw error;
   }
+}
+
+export async function deleteStorageObject(key: string): Promise<void> {
+  await s3.send(
+    new DeleteObjectCommand({
+      Bucket: storageConfig.bucket,
+      Key: key,
+    }),
+  );
+}
+
+function sanitizeFileName(fileName: string): string {
+  const baseName = path.basename(fileName);
+  const normalized = baseName.normalize("NFKD");
+  const extension = path.extname(normalized).toLowerCase();
+  const nameWithoutExtension = path.basename(normalized, extension);
+  const sanitizedName = nameWithoutExtension
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  const sanitizedExtension = extension.replace(/[^a-z0-9.]/g, "");
+
+  const safeName = sanitizedName || "file";
+  return `${safeName}${sanitizedExtension}`;
 }
 
 function isMissingObjectError(error: unknown): boolean {

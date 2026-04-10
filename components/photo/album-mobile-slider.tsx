@@ -36,41 +36,45 @@ export function AlbumMobileSlider({ albums }: AlbumMobileSliderProps) {
 
   return (
     <div className="photo-mobile-shell">
-      <div ref={sliderRef} className="keen-slider photo-mobile-slider">
-        {albums.map((album, index) => {
-          const previewImage =
-            album.photos?.[0]?.thumbnailUrl ?? album.photos?.[0]?.imageUrl ?? album.coverUrl ?? "/img/photo.png";
+      <div className="card photo-mobile-slider-card">
+        <div ref={sliderRef} className="keen-slider photo-mobile-slider">
+          {albums.map((album, index) => {
+            const previewImage =
+              album.photos?.[0]?.thumbnailUrl ?? album.photos?.[0]?.imageUrl ?? album.coverUrl ?? "/img/photo.png";
 
-          return (
-            <div key={album.id} className="keen-slider__slide photo-mobile-slide">
-              <article
-                className="viewer-album-card viewer-album-card--photo photo-mobile-card"
-                onClick={() => {
-                  if (index === current) {
-                    router.push(`/photo/${album.slug}`);
-                  }
-                }}
-              >
-                <div className="album-preview">
-                  {previewImage ? (
-                    <img src={previewImage} alt={album.title} />
-                  ) : (
-                    <div className="album-preview-fallback" aria-hidden="true" />
-                  )}
-                </div>
+            return (
+              <div key={album.id} className="keen-slider__slide photo-mobile-slide">
+                <article
+                  className="viewer-album-card viewer-album-card--photo album-card photo-mobile-card"
+                  onClick={() => {
+                    if (index === current) {
+                      router.push(`/photo/${album.slug}`);
+                    }
+                  }}
+                >
+                  <div className="album-preview">
+                    {previewImage ? (
+                      <img src={previewImage} alt={album.title} />
+                    ) : (
+                      <div className="album-preview-fallback" aria-hidden="true" />
+                    )}
+                  </div>
 
-                <div className="album-overlay">
-                  <strong>{album.title}</strong>
-                  <span>{album.itemCount} photos</span>
-                </div>
-              </article>
-            </div>
-          );
-        })}
+                  <div className="album-overlay">
+                    <strong>{album.title}</strong>
+                    <span>{album.itemCount} photos</span>
+                  </div>
+                </article>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <DotsIndicator count={albums.length} current={current} />
-      <AlbumDescription album={activeAlbum} />
+      <div className="card photo-mobile-description-card">
+        <AlbumDescription album={activeAlbum} />
+      </div>
     </div>
   );
 }
