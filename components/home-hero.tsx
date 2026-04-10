@@ -11,11 +11,16 @@ type HeroVideo = {
 };
 
 type HomeHeroProps = {
-  video: HeroVideo | null;
+  videos: HeroVideo[];
 };
 
-export function HomeHero({ video }: HomeHeroProps) {
+export function HomeHero({ videos }: HomeHeroProps) {
   const [droneVisible, setDroneVisible] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const hasVideos = videos.length > 0;
+  const hasMultipleVideos = videos.length > 1;
+  const currentVideo = hasVideos ? videos[currentIndex] ?? videos[0] : null;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -25,16 +30,28 @@ export function HomeHero({ video }: HomeHeroProps) {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [videos.length]);
+
+  const handleNext = () => {
+    if (!hasMultipleVideos) {
+      return;
+    }
+
+    setCurrentIndex((prev) => (prev + 1) % videos.length);
+  };
+
   return (
-    <main className="hero-page">
+    <main className="hero-page" onClick={handleNext}>
       <div className="hero-media-layer" aria-hidden="true">
         <div className="hero-fallback-layer" />
-        {video ? (
+        {currentVideo ? (
           <video
-            key={video.id}
+            key={currentVideo.id}
             className="hero-video fade-in"
-            src={video.videoUrl}
-            poster={video.posterUrl ?? undefined}
+            src={currentVideo.videoUrl}
+            poster={currentVideo.posterUrl ?? undefined}
             autoPlay
             muted
             loop
@@ -67,6 +84,24 @@ export function HomeHero({ video }: HomeHeroProps) {
           только на земле
         </h1>
       </div>
+
+      {hasMultipleVideos ? (
+        <div className="hero-dots">
+          {videos.map((video, index) => (
+            <button
+              key={video.id}
+              type="button"
+              className={`hero-dot ${index === currentIndex ? "is-active" : ""}`}
+              aria-label={`Переключить на видео ${index + 1}`}
+              aria-pressed={index === currentIndex}
+              onClick={(event) => {
+                event.stopPropagation();
+                setCurrentIndex(index);
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <img src="/img/main.png" alt="" className="hero-person" aria-hidden="true" />
       <img
