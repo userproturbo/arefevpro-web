@@ -73,7 +73,7 @@ export function HomeHero({ videos }: HomeHeroProps) {
       </div>
 
       <div className="hero-overlay" aria-hidden="true" />
-      <SiteNavigation />
+      <SiteNavigation className="site-nav--hero" />
 
       <div className="hero-copy hero-content">
         <h1>
