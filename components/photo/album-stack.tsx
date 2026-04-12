@@ -61,10 +61,6 @@ export function AlbumStack({ album, isActive = false, onClick, onHover }: AlbumS
         ))}
       </div>
 
-      <div className="album-stack-copy">
-        <span className="album-stack-title">{album.title}</span>
-        <span className="album-stack-meta">{album.itemCount} photos</span>
-      </div>
     </button>
   );
 }
