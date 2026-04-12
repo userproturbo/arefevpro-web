@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
 import { AlbumMobileSlider } from "@/components/photo/album-mobile-slider";
 import { AlbumDescriptionPanel } from "@/components/photo/album-description-panel";
 import { AlbumStack, getPhotoCaption } from "@/components/photo/album-stack";
@@ -28,7 +28,8 @@ type ViewerMedia =
 type ViewerPhoto = Extract<ViewerMedia, { kind: "PHOTO" }>;
 
 export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProps) {
-  const isImmersiveViewer = page.section.type === "PHOTO" || page.section.type === "VIDEO";
+  const isPhotoSection = page.section.type === "PHOTO";
+  const isVideoSection = page.section.type === "VIDEO";
   const [isMobile, setIsMobile] = useState(false);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(
     page.albums.find((album) => album.slug === initialAlbumSlug)?.id ?? null,
@@ -51,12 +52,8 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
   const displayedPhoto = selectedMedia?.kind === "PHOTO" ? selectedMedia : null;
   const previewAlbum = selectedAlbum ?? page.albums[0] ?? null;
   const isAlbumOpen = Boolean(selectedAlbumId);
-  const isPhotoSection = page.section.type === "PHOTO";
-  const isGallerySidebar =
-    (isPhotoSection || page.section.type === "VIDEO") && isAlbumOpen;
   const previewVisual = getAlbumStageVisual(page.section.type, activeAlbum);
-  const shouldRenderPhotoBrowser = isPhotoSection && !isAlbumOpen;
-  const shouldRenderPhotoMobileGallery = isPhotoSection && isMobile && isAlbumOpen;
+  const isImmersiveViewer = isVideoSection || (isPhotoSection && !isMobile);
 
   useEffect(() => {
     function syncViewport() {
@@ -75,14 +72,20 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
       return;
     }
 
-    if (page.section.type === "VIDEO" || page.section.type === "PHOTO") {
+    if (isPhotoSection || isVideoSection) {
       const firstMedia = media[0] ?? null;
-      setSelectedMediaId(firstMedia?.id ?? null);
+      setSelectedMediaId((current) => {
+        if (current && media.some((item) => item.id === current)) {
+          return current;
+        }
+
+        return firstMedia?.id ?? null;
+      });
       return;
     }
 
     setSelectedMediaId(null);
-  }, [selectedAlbumId, page.section.type]);
+  }, [isPhotoSection, isVideoSection, media, selectedAlbumId]);
 
   useEffect(() => {
     Object.entries(previewRefs.current).forEach(([id, element]) => {
@@ -115,28 +118,38 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
   }, [lightboxOpen]);
 
   useEffect(() => {
-    if (!isImmersiveViewer) {
+    if (lightboxOpen) {
       return;
     }
 
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyOverflow = document.body.style.overflow;
+    function handlePhotoViewerKey(event: KeyboardEvent) {
+      if (!isPhotoSection || !isAlbumOpen) {
+        return;
+      }
 
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
+      if (event.key === "Escape") {
+        closeAlbum();
+      }
 
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-    };
-  }, [isImmersiveViewer]);
+      if (event.key === "ArrowRight") {
+        goNext();
+      }
+
+      if (event.key === "ArrowLeft") {
+        goPrev();
+      }
+    }
+
+    window.addEventListener("keydown", handlePhotoViewerKey);
+    return () => window.removeEventListener("keydown", handlePhotoViewerKey);
+  }, [isAlbumOpen, isPhotoSection, lightboxOpen, currentIndex, photoList]);
 
   useEffect(() => {
     if (!lightboxOpen) {
       return;
     }
 
-    function handleKey(event: KeyboardEvent) {
+    function handleLightboxKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setLightboxOpen(false);
       }
@@ -150,8 +163,8 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
       }
     }
 
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handleLightboxKey);
+    return () => window.removeEventListener("keydown", handleLightboxKey);
   }, [lightboxOpen, currentIndex, photoList]);
 
   function openAlbum(albumId: string) {
@@ -159,9 +172,17 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     setSelectedAlbumId(albumId);
   }
 
+  function handleAlbumStackClick(albumId: string) {
+    if (activeAlbumId === albumId) {
+      openAlbum(albumId);
+      return;
+    }
+
+    setActiveAlbumId(albumId);
+  }
+
   function closeAlbum() {
     setSelectedAlbumId(null);
-    setSelectedMediaId(null);
     setHoveredVideoId(null);
     setLightboxOpen(false);
   }
@@ -184,11 +205,11 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     setSelectedMediaId(photoList[prevIndex].id);
   }
 
-  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
     touchStartX.current = event.touches[0].clientX;
   }
 
-  function handleTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
     const diff = event.changedTouches[0].clientX - touchStartX.current;
 
     if (diff > 50) {
@@ -204,42 +225,83 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     <main
       className={`viewer-page ${isImmersiveViewer ? "viewer-page--immersive" : ""} ${
         isPhotoSection ? "photo-page" : ""
-      } ${page.section.type === "VIDEO" ? "video-page" : ""}`}
+      } ${isVideoSection ? "video-page" : ""}`}
     >
       <SiteNavigation className="viewer-header" />
 
-      {shouldRenderPhotoMobileGallery ? (
-        <div className="photo-mobile-page">
-          <AlbumMobileSlider albums={page.albums} />
-        </div>
-      ) : shouldRenderPhotoBrowser ? (
-        <div className="photo-browser">
-          <aside className="photo-album-stacks">
-            {page.albums.length > 0 ? (
-              page.albums.map((album) => (
-                <AlbumStack
-                  key={album.id}
-                  album={album}
-                  isActive={activeAlbum?.id === album.id}
-                  onClick={() => openAlbum(album.id)}
-                  onHover={isMobile ? undefined : () => setActiveAlbumId(album.id)}
-                />
-              ))
-            ) : (
-              <div className="viewer-empty-block">В этом разделе пока нет альбомов.</div>
-            )}
-          </aside>
+      {isPhotoSection ? (
+        isAlbumOpen ? (
+          isMobile ? (
+            <div className="photo-mobile-album-page">
+              <PhotoMobileAlbumView
+                album={selectedAlbum}
+                photos={photoList}
+                selectedMediaId={selectedMediaId}
+                onBack={closeAlbum}
+                onSelectPhoto={(photoId) => {
+                  setSelectedMediaId(photoId);
+                  setLightboxOpen(true);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="photo-desktop-album-page">
+              <PhotoDesktopAlbumView
+                album={selectedAlbum}
+                media={displayedPhoto}
+                photoCount={photoList.length}
+                currentIndex={currentIndex}
+                prevPhoto={getAdjacentPhoto(photoList, currentIndex, -1)}
+                nextPhoto={getAdjacentPhoto(photoList, currentIndex, 1)}
+                onBack={closeAlbum}
+                onOpenLightbox={() => setLightboxOpen(true)}
+                onPrev={goPrev}
+                onNext={goNext}
+              />
+            </div>
+          )
+        ) : isMobile ? (
+          <div className="photo-mobile-page">
+            <AlbumMobileSlider
+              albums={page.albums}
+              activeAlbumId={activeAlbumId}
+              onActiveAlbumChange={setActiveAlbumId}
+              onOpenAlbum={openAlbum}
+            />
+          </div>
+        ) : (
+          <div className="photo-browser">
+            <aside className="photo-album-rail">
+              <div className="photo-album-scroll">
+                <div className="photo-album-stacks">
+                  {page.albums.length > 0 ? (
+                    page.albums.map((album) => (
+                      <AlbumStack
+                        key={album.id}
+                        album={album}
+                        isActive={activeAlbum?.id === album.id}
+                        onClick={() => handleAlbumStackClick(album.id)}
+                        onHover={() => setActiveAlbumId(album.id)}
+                      />
+                    ))
+                  ) : (
+                    <div className="viewer-empty-block">В этом разделе пока нет альбомов.</div>
+                  )}
+                </div>
+              </div>
+            </aside>
 
-          <section className="photo-album-description">
-            <AlbumDescriptionPanel album={activeAlbum} />
-          </section>
-        </div>
+            <section className="photo-album-description">
+              <AlbumDescriptionPanel album={activeAlbum} />
+            </section>
+          </div>
+        )
       ) : (
         <div className={`viewer-shell ${isImmersiveViewer ? "viewer-shell--immersive" : ""}`}>
           <aside
-            className={`viewer-rail ${isGallerySidebar ? "viewer-rail--gallery" : ""} ${
+            className={`viewer-rail ${isVideoSection && isAlbumOpen ? "viewer-rail--gallery" : ""} ${
               isImmersiveViewer ? "viewer-rail--immersive" : ""
-            } ${isPhotoSection && isAlbumOpen ? "photo-open-sidebar" : ""}`}
+            }`}
           >
             <div className="viewer-rail-head">
               {isAlbumOpen ? (
@@ -292,7 +354,7 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
                         <div className="album-overlay">
                           <strong>{album.title}</strong>
                           <span>
-                            {album.itemCount} {page.section.type === "VIDEO" ? "videos" : "photos"}
+                            {album.itemCount} {isVideoSection ? "videos" : "photos"}
                           </span>
                         </div>
                       </button>
@@ -300,34 +362,6 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
                   })
                 ) : (
                   <div className="viewer-empty-block">В этом разделе пока нет альбомов.</div>
-                )}
-              </div>
-            ) : isPhotoSection ? (
-              <div className="viewer-list photo-open-list">
-                {media.length > 0 ? (
-                  media.map((item) =>
-                    item.kind === "PHOTO" ? (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={`photo-thumb-card ${selectedMediaId === item.id ? "is-active" : ""}`}
-                        onClick={() => setSelectedMediaId(item.id)}
-                      >
-                        <div className="polaroid">
-                          <div className="polaroid-media polaroid-media--thumb photo-thumb-image">
-                            <img
-                              className="polaroid-image polaroid-image--thumb"
-                              src={item.previewUrl}
-                              alt={getPhotoCaption(item)}
-                            />
-                          </div>
-                          <div className="polaroid-caption">{getPhotoCaption(item)}</div>
-                        </div>
-                      </button>
-                    ) : null,
-                  )
-                ) : (
-                  <div className="viewer-empty-block">В этом альбоме пока нет медиа.</div>
                 )}
               </div>
             ) : (
@@ -377,27 +411,13 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
             )}
           </aside>
 
-          <section
-            className={`viewer-stage-panel ${isImmersiveViewer ? "viewer-stage-panel--immersive" : ""} ${
-              isPhotoSection && isAlbumOpen ? "photo-stage-panel" : ""
-            }`}
-          >
-            {page.section.type === "VIDEO" ? (
+          <section className={`viewer-stage-panel ${isImmersiveViewer ? "viewer-stage-panel--immersive" : ""}`}>
+            {isVideoSection ? (
               <VideoContent
                 album={activeAlbum}
                 isAlbumOpen={isAlbumOpen}
                 media={selectedMedia?.kind === "VIDEO" ? selectedMedia : null}
                 previewVisual={previewVisual}
-              />
-            ) : null}
-
-            {page.section.type === "PHOTO" ? (
-              <PhotoContent
-                album={activeAlbum}
-                isAlbumOpen={isAlbumOpen}
-                media={displayedPhoto}
-                previewVisual={previewVisual}
-                onOpenLightbox={() => setLightboxOpen(true)}
               />
             ) : null}
 
@@ -442,7 +462,7 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
           <img
             key={displayedPhoto.id}
             src={displayedPhoto.url}
-            alt={displayedPhoto.title}
+            alt={getPhotoCaption(displayedPhoto)}
             className="lightbox-image"
             onClick={(event) => event.stopPropagation()}
           />
@@ -461,6 +481,167 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
         </div>
       ) : null}
     </main>
+  );
+}
+
+function PhotoDesktopAlbumView({
+  album,
+  media,
+  photoCount,
+  currentIndex,
+  prevPhoto,
+  nextPhoto,
+  onBack,
+  onOpenLightbox,
+  onPrev,
+  onNext,
+}: {
+  album: SectionPageAlbum | null;
+  media: (PhotoListItem & { kind: "PHOTO"; url: string; previewUrl: string }) | null;
+  photoCount: number;
+  currentIndex: number;
+  prevPhoto: ViewerPhoto | null;
+  nextPhoto: ViewerPhoto | null;
+  onBack: () => void;
+  onOpenLightbox: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <section className="photo-album-view">
+      <header className="photo-album-view-head">
+        <button type="button" className="photo-back-button" onClick={onBack}>
+          ← Back to albums
+        </button>
+
+        <div className="photo-album-view-copy">
+          <p className="album-stage-kicker">Photo Album</p>
+          <h1>{album?.title ?? "Untitled album"}</h1>
+          <p>{album?.description ?? "A curated still-image sequence."}</p>
+        </div>
+
+        <div className="photo-album-view-meta">
+          <span>
+            {photoCount > 0 && currentIndex >= 0 ? `${currentIndex + 1} / ${photoCount}` : `0 / ${photoCount}`}
+          </span>
+          <span>{photoCount} frames</span>
+        </div>
+      </header>
+
+      {media ? (
+        <div className="photo-cinematic-viewer">
+          <button type="button" className="photo-viewer-arrow photo-viewer-arrow--left" onClick={onPrev}>
+            <span>‹</span>
+          </button>
+
+          <div className="photo-cinematic-stage">
+            {prevPhoto ? (
+              <button type="button" className="photo-cinematic-card is-side is-prev" onClick={onPrev}>
+                <img
+                  src={prevPhoto.previewUrl}
+                  alt={getPhotoCaption(prevPhoto)}
+                  loading="lazy"
+                  decoding="async"
+                  sizes="20vw"
+                />
+              </button>
+            ) : (
+              <div className="photo-cinematic-card is-side is-empty" aria-hidden="true" />
+            )}
+
+            <button type="button" className="photo-cinematic-card is-active" onClick={onOpenLightbox}>
+              <img src={media.url} alt={getPhotoCaption(media)} loading="eager" decoding="async" sizes="60vw" />
+              <div className="photo-cinematic-caption">
+                <strong>{getPhotoCaption(media)}</strong>
+                <span>Tap or click for fullscreen</span>
+              </div>
+            </button>
+
+            {nextPhoto ? (
+              <button type="button" className="photo-cinematic-card is-side is-next" onClick={onNext}>
+                <img
+                  src={nextPhoto.previewUrl}
+                  alt={getPhotoCaption(nextPhoto)}
+                  loading="lazy"
+                  decoding="async"
+                  sizes="20vw"
+                />
+              </button>
+            ) : (
+              <div className="photo-cinematic-card is-side is-empty" aria-hidden="true" />
+            )}
+          </div>
+
+          <button type="button" className="photo-viewer-arrow photo-viewer-arrow--right" onClick={onNext}>
+            <span>›</span>
+          </button>
+        </div>
+      ) : (
+        <div className="album-stage-empty">
+          <p className="album-stage-kicker">Photo album</p>
+          <h2>В этом альбоме пока нет опубликованных фотографий.</h2>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PhotoMobileAlbumView({
+  album,
+  photos,
+  selectedMediaId,
+  onBack,
+  onSelectPhoto,
+}: {
+  album: SectionPageAlbum | null;
+  photos: ViewerPhoto[];
+  selectedMediaId: string | null;
+  onBack: () => void;
+  onSelectPhoto: (photoId: string) => void;
+}) {
+  return (
+    <section className="photo-mobile-album">
+      <header className="photo-mobile-album-head">
+        <button type="button" className="photo-back-button" onClick={onBack}>
+          ← Albums
+        </button>
+
+        <div className="photo-mobile-album-copy">
+          <p className="album-stage-kicker">Photo Album</p>
+          <h1>{album?.title ?? "Untitled album"}</h1>
+          <p>{album?.description ?? "A curated still-image sequence."}</p>
+        </div>
+      </header>
+
+      <div className="photo-mobile-feed">
+        {photos.length > 0 ? (
+          photos.map((photo, index) => (
+            <button
+              key={photo.id}
+              type="button"
+              className={`photo-mobile-shot ${selectedMediaId === photo.id ? "is-active" : ""}`}
+              onClick={() => onSelectPhoto(photo.id)}
+            >
+              <div className="photo-mobile-shot-media">
+                <img
+                  src={photo.url}
+                  alt={getPhotoCaption(photo)}
+                  loading={index < 2 ? "eager" : "lazy"}
+                  decoding="async"
+                  sizes="100vw"
+                />
+              </div>
+              <div className="photo-mobile-shot-copy">
+                <strong>{getPhotoCaption(photo)}</strong>
+                <span>{index + 1} / {photos.length}</span>
+              </div>
+            </button>
+          ))
+        ) : (
+          <div className="viewer-empty-block">В этом альбоме пока нет опубликованных фотографий.</div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -504,56 +685,6 @@ function VideoContent({
         <div className="album-stage-empty">
           <p className="album-stage-kicker">Video album</p>
           <h2>В этом альбоме пока нет опубликованных видео.</h2>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PhotoContent({
-  album,
-  isAlbumOpen,
-  media,
-  previewVisual,
-  onOpenLightbox,
-}: {
-  album: SectionPageAlbum | null;
-  isAlbumOpen: boolean;
-  media: (PhotoListItem & { kind: "PHOTO"; url: string; previewUrl: string }) | null;
-  previewVisual: StageVisual;
-  onOpenLightbox: () => void;
-}) {
-  if (!isAlbumOpen) {
-    return (
-      <AlbumStage
-        sectionLabel="Photo album"
-        album={album}
-        visual={previewVisual}
-        emptyMessage="Выберите альбом слева, чтобы открыть фотосцену."
-      />
-    );
-  }
-
-  return (
-    <div className="viewer-stage viewer-stage--media photo-stage">
-      {media ? (
-        <button type="button" className="viewer-image-button" onClick={onOpenLightbox}>
-          <div className="polaroid polaroid--large">
-            <div className="polaroid-media polaroid-media--large">
-              <img
-                key={media.id}
-                src={media.url}
-                alt={getPhotoCaption(media)}
-                className="polaroid-image polaroid-image--large"
-              />
-            </div>
-            <div className="polaroid-caption">{getPhotoCaption(media)}</div>
-          </div>
-        </button>
-      ) : (
-        <div className="album-stage-empty">
-          <p className="album-stage-kicker">Photo album</p>
-          <h2>В этом альбоме пока нет опубликованных фотографий.</h2>
         </div>
       )}
     </div>
@@ -623,6 +754,15 @@ function AlbumStage({
       </div>
     </section>
   );
+}
+
+function getAdjacentPhoto(photoList: ViewerPhoto[], currentIndex: number, direction: -1 | 1) {
+  if (photoList.length <= 1 || currentIndex < 0) {
+    return null;
+  }
+
+  const nextIndex = (currentIndex + direction + photoList.length) % photoList.length;
+  return photoList[nextIndex] ?? null;
 }
 
 function getAlbumMedia(album: SectionPageAlbum | null): ViewerMedia[] {

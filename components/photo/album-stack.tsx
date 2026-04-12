@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { SectionPageAlbum } from "@/lib/services/sections";
 
 type PhotoCaptionSource = {
@@ -24,14 +25,13 @@ export function getPhotoCaption(photo: PhotoCaptionSource) {
 }
 
 export function AlbumStack({ album, isActive = false, onClick, onHover }: AlbumStackProps) {
-  const previewPhotos = album.photos?.slice(0, 2) ?? [];
+  const previewPhotos = album.photos?.slice(0, 3) ?? [];
   const previewImages = previewPhotos
     .map((photo) => photo.thumbnailUrl ?? photo.imageUrl)
     .filter(Boolean);
-
-  const topImage = previewImages[0] ?? "/img/photo.png";
-  const backImage = previewImages[1] ?? topImage;
-  const topPhoto = previewPhotos[0] ?? { id: album.id, title: null };
+  const stackImages = Array.from({ length: Math.max(Math.min(previewImages.length, 3), 3) }, (_, index) => {
+    return previewImages[index] ?? previewImages[0] ?? "/img/photo.png";
+  });
 
   return (
     <button
@@ -41,20 +41,29 @@ export function AlbumStack({ album, isActive = false, onClick, onHover }: AlbumS
       onMouseEnter={onHover}
       onFocus={onHover}
     >
-      <div className="album-stack-layer layer-back">
-        <div className="polaroid polaroid--stack-back">
-          <div className="polaroid-media polaroid-media--stack">
-            <img className="polaroid-image polaroid-image--stack" src={backImage} alt="" aria-hidden="true" />
+      <div className="album-stack-visual" aria-hidden="true">
+        {stackImages.map((image, index) => (
+          <div
+            key={`${album.id}-${index}`}
+            className={`album-stack-layer album-stack-layer--${index + 1}`}
+            style={{ ["--stack-index" as string]: index } as CSSProperties}
+          >
+            <div className="album-stack-frame">
+              <img
+                className="album-stack-image"
+                src={image}
+                alt=""
+                loading={index === 0 ? "eager" : "lazy"}
+                decoding="async"
+              />
+            </div>
           </div>
-        </div>
+        ))}
       </div>
-      <div className="album-stack-layer layer-front">
-        <div className="polaroid polaroid--stack-front">
-          <div className="polaroid-media polaroid-media--stack">
-            <img className="polaroid-image polaroid-image--stack" src={topImage} alt={getPhotoCaption(topPhoto)} />
-          </div>
-          <div className="polaroid-caption">{getPhotoCaption(topPhoto)}</div>
-        </div>
+
+      <div className="album-stack-copy">
+        <span className="album-stack-title">{album.title}</span>
+        <span className="album-stack-meta">{album.itemCount} photos</span>
       </div>
     </button>
   );

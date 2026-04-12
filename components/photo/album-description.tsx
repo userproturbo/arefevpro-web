@@ -10,9 +10,10 @@ export function AlbumDescription({ album }: AlbumDescriptionProps) {
   }
 
   return (
-    <div className="album-description">
+    <div key={album.id} className="album-description">
       <h2>{album.title}</h2>
       {album.description ? <p>{album.description}</p> : null}
+      <span className="album-description-count">{album.itemCount} photos</span>
     </div>
   );
 }
