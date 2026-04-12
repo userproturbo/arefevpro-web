@@ -216,10 +216,11 @@
   }
 
   /* ДРОН */
-  .hero-drone { 
-    width: 140px;
-    top: clamp(60px, 12vh, 140px);
-    right: clamp(20px, 6vw, 120px);
+  .hero-drone {
+    width: 100px;
+    height: 60px;
+    top: 160px;  
+    right: 60px;
   }
 
   /* ТОЧКИ */
@@ -248,7 +249,8 @@
   }
 
   .hero-drone {
-    width: clamp(60px, 10vw, 120px);
+    width: 100px;
+    height: 60px;
     top: 60px;  
     right: 60px;
   }
