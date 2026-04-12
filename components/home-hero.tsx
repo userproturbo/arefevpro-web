@@ -77,9 +77,13 @@ export function HomeHero({ videos }: HomeHeroProps) {
 
       <div className="hero-copy hero-content">
         <h1>
-          Добро пожаловать в мир FPV-полетов,
+          Добро пожаловать
           <br />
-          где границы существуют
+          в мир FPV-полетов
+          <br />
+          где границы 
+          <br />
+          существуют
           <br />
           только на земле
         </h1>

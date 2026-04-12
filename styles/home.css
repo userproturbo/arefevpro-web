@@ -216,8 +216,8 @@
   }
 
   /* ДРОН */
-  .hero-drone {
-    width: clamp(70px, 12vw, 180px);
+  .hero-drone { 
+    width: 140px;
     top: clamp(60px, 12vh, 140px);
     right: clamp(20px, 6vw, 120px);
   }
