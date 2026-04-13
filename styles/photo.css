@@ -1,19 +1,12 @@
 .photo-page.viewer-page {
   width: 100%;
   max-width: none;
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 28%),
     radial-gradient(circle at 80% 18%, rgba(201, 169, 103, 0.08), transparent 22%),
     linear-gradient(180deg, #0d0d0d 0%, #070707 44%, #050505 100%);
-}
-
-.photo-page {
-  overflow: visible !important;
-}
-
-.photo-page .hero-page {
-  overflow: visible !important;
 }
 
 .photo-page.viewer-page--immersive {
@@ -298,10 +291,11 @@
   padding-top: 4px;
 }
 
-.photo-page .photo-mobile-page,
-.photo-page .photo-mobile-album-page {
-  min-height: 100vh;
-  padding: 0 0 24px;
+.photo-page .photo-mobile-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .photo-page .photo-mobile-shell {
@@ -770,12 +764,6 @@
 }
 
 @media (max-width: 768px) {
-  .photo-page.viewer-page,
-  .photo-page.viewer-page--immersive {
-    height: auto;
-    overflow: visible;
-  }
-
   .photo-page .viewer-header {
     backdrop-filter: none;
   }
