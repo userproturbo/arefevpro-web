@@ -301,7 +301,7 @@
 .photo-page .photo-mobile-page,
 .photo-page .photo-mobile-album-page {
   min-height: 100vh;
-  padding: 92px 0 24px;
+  padding: 0 0 24px;
 }
 
 .photo-page .photo-mobile-shell {
@@ -316,7 +316,7 @@
   grid-auto-columns: 80%;
   gap: 80px;
   overflow-x: auto;
-  padding: 34px 16px 4px;
+  padding: 30px 16px 46px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
@@ -382,14 +382,6 @@
   transform: translate3d(18px, 20px, 0) rotate(9deg);
 }
 
-.photo-page .photo-mobile-slide-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-left: 6px;
-}
-
-.photo-page .photo-mobile-slide-copy strong,
 .photo-page .album-description h2,
 .photo-page .photo-cinematic-caption strong,
 .photo-page .photo-mobile-shot-copy strong {
@@ -398,12 +390,10 @@
   letter-spacing: -0.03em;
 }
 
-.photo-page .photo-mobile-slide-copy strong,
 .photo-page .album-description h2 {
   font-size: 28px;
 }
 
-.photo-page .photo-mobile-slide-copy span,
 .photo-page .photo-mobile-shot-copy span {
   color: rgba(255, 255, 255, 0.56);
   font-size: 12px;

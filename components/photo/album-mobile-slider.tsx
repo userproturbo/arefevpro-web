@@ -146,11 +146,6 @@ export function AlbumMobileSlider({
                   </span>
                 ))}
               </span>
-
-              <span className="photo-mobile-slide-copy">
-                <strong>{album.title}</strong>
-                <span>{album.itemCount} photos</span>
-              </span>
             </button>
           );
         })}
