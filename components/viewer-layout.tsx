@@ -57,7 +57,10 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
 
   useEffect(() => {
     function syncViewport() {
-      setIsMobile(window.innerWidth < 768);
+      const isPhone = window.innerWidth < 768;
+      const isTabletPortrait = window.innerWidth <= 1024 && window.innerHeight > window.innerWidth;
+
+      setIsMobile(isPhone || isTabletPortrait);
     }
 
     syncViewport();

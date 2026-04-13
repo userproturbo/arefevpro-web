@@ -307,10 +307,10 @@
 .photo-page .photo-mobile-slider {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 80%;
-  gap: 80px;
+  grid-auto-columns: 60%;
+  gap: 200px;
   overflow-x: auto;
-  padding: 30px 16px 46px;
+  padding: 30px 16px 54px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
