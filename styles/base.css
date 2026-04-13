@@ -25,6 +25,10 @@ body:has(.audio-player-bar) {
   padding-bottom: 96px;
 }
 
+h1 {
+  font-family: var(--display);
+}
+
 a {
   color: inherit;
   text-decoration: none;

@@ -185,7 +185,7 @@
 .placeholder-panel h3,
 .not-found-page h1 {
   margin: 0;
-  font-family: var(--serif);
+  font-family: var(--display);
   font-weight: 400;
 }
 

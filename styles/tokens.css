@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "PoiretOne-Regular";
+  src: url("/fonts/PoiretOne-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #0b0b0c;
   --bg-soft: #101010;
@@ -7,6 +15,7 @@
   --text: #f5f1e8;
   --muted: rgba(245, 241, 232, 0.62);
   --accent: #d8c29d;
+  --display: "PoiretOne-Regular", "Times New Roman", serif;
   --serif: "Baskerville", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --sans: "Avenir Next", "Segoe UI", sans-serif;
 }

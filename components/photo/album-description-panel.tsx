@@ -11,6 +11,9 @@ export function AlbumDescriptionPanel({ album }: AlbumDescriptionPanelProps) {
         <p className="album-description-kicker">Photo Album</p>
         <h1>{album?.title ?? "Photo album coming soon"}</h1>
         <p>{album?.description ?? "Description coming soon."}</p>
+        <div className="album-description-meta">
+          <span>{album?.itemCount ?? 0} photos</span>
+        </div>
       </div>
     </div>
   );
