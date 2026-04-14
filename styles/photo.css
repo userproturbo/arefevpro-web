@@ -769,7 +769,7 @@
   }
 
   .photo-page .photo-mobile-slider {
-    grid-auto-columns: 82%;
+    grid-auto-columns: 50%;
   }
 
   .photo-page .photo-mobile-stack {
