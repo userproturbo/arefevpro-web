@@ -1,3 +1,5 @@
+import "@/styles/components.css";
+import "@/styles/admin.css";
 import { SiteNavigation } from "@/components/site-navigation";
 import { prisma } from "@/lib/prisma";
 

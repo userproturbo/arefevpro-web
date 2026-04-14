@@ -1,3 +1,5 @@
+import "@/styles/components.css";
+import "@/styles/photo.css";
 import { notFound } from "next/navigation";
 import { ViewerLayout } from "@/components/viewer-layout";
 import { getSectionPageData } from "@/lib/services/sections";

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { SiteNavigation } from "@/components/site-navigation";
 
@@ -17,6 +18,7 @@ type HomeHeroProps = {
 export function HomeHero({ videos }: HomeHeroProps) {
   const [droneVisible, setDroneVisible] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isClient, setIsClient] = useState(false);
 
   const hasVideos = videos.length > 0;
   const hasMultipleVideos = videos.length > 1;
@@ -28,6 +30,10 @@ export function HomeHero({ videos }: HomeHeroProps) {
     }, 1500);
 
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    setIsClient(true);
   }, []);
 
   useEffect(() => {
@@ -46,7 +52,7 @@ export function HomeHero({ videos }: HomeHeroProps) {
     <main className="hero-page" onClick={handleNext}>
       <div className="hero-media-layer" aria-hidden="true">
         <div className="hero-fallback-layer" />
-        {currentVideo ? (
+        {isClient && currentVideo ? (
           <video
             key={currentVideo.id}
             className="hero-video fade-in"
@@ -56,7 +62,7 @@ export function HomeHero({ videos }: HomeHeroProps) {
             muted
             loop
             playsInline
-            preload="metadata"
+            preload="none"
           />
         ) : (
           <div
@@ -107,11 +113,22 @@ export function HomeHero({ videos }: HomeHeroProps) {
         </div>
       ) : null}
 
-      <img src="/img/main.png" alt="" className="hero-person" aria-hidden="true" />
-      <img
+      <Image
+        src="/img/main.png"
+        alt=""
+        width={853}
+        height={1280}
+        className="hero-person"
+        priority
+        aria-hidden="true"
+      />
+      <Image
         src="/img/drone.png"
         alt=""
+        width={1536}
+        height={1024}
         className={`hero-drone ${droneVisible ? "is-visible" : ""}`}
+        priority={false}
         aria-hidden="true"
       />
     </main>

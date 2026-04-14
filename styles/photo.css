@@ -1036,7 +1036,6 @@
 
   .photo-page .photo-browser.photo-browser--phone-landscape .photo-album-stack-item {
     display: block;
-    cursor: pointer;
   }
 
   .photo-page .photo-browser.photo-browser--phone-landscape .photo-album-description--phone-landscape {

@@ -200,12 +200,21 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     return () => window.removeEventListener("keydown", handleLightboxKey);
   }, [lightboxOpen, currentIndex, photoList]);
 
+  useEffect(() => {
+    console.log("phone-landscape activeAlbum", activeAlbum);
+  }, [activeAlbum]);
+
   function openAlbum(albumId: string) {
     setActiveAlbumId(albumId);
     setSelectedAlbumId(albumId);
   }
 
   function handleAlbumStackClick(albumId: string) {
+    console.log("handleAlbumStackClick", {
+      clickedAlbumId: albumId,
+      activeAlbumIdBefore: activeAlbumId,
+    });
+
     if (activeAlbumId === albumId) {
       openAlbum(albumId);
       return;
@@ -311,13 +320,12 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
                     page.albums.map((album) => (
                       <div
                         key={album.id}
-                        className="photo-album-stack-item"
-                        onClick={() => handleAlbumStackClick(album.id)}
+                        className={`photo-album-stack-item ${activeAlbum?.id === album.id ? "is-active" : ""}`}
                       >
                         <AlbumStack
                           album={album}
                           isActive={activeAlbum?.id === album.id}
-                          onClick={() => undefined}
+                          onClick={() => handleAlbumStackClick(album.id)}
                           onHover={() => undefined}
                         />
                       </div>

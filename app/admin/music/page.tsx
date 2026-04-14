@@ -1,3 +1,6 @@
+import "@/styles/components.css";
+import "@/styles/music.css";
+import "@/styles/admin.css";
 import { AdminMusicManager } from "@/components/admin/admin-music-manager";
 import { listPlaylists } from "@/lib/services/music";
 

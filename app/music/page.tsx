@@ -1,3 +1,5 @@
+import "@/styles/components.css";
+import "@/styles/music.css";
 import { MusicPage } from "@/components/music-page";
 import { getMusicPageData } from "@/lib/services/music";
 

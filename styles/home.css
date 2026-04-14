@@ -137,12 +137,14 @@
   right: 0;
   bottom: 0;
   width: 320px;
+  height: auto;
 }
 
 .hero-drone {
   top: 140px;
   right: 120px;
   width: 140px;
+  height: auto;
   opacity: 0;
   transform: translateX(200px);
 }

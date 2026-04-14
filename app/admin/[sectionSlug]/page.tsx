@@ -1,3 +1,5 @@
+import "@/styles/components.css";
+import "@/styles/admin.css";
 import { notFound } from "next/navigation";
 import { AdminSectionManager } from "@/components/admin/admin-section-manager";
 import { listSections } from "@/lib/services/sections";
