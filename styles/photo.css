@@ -725,7 +725,6 @@
   }
 
   .photo-page .photo-album-scroll {
-    max-height: 52vh;
     padding-right: 10px;
   }
 
@@ -802,7 +801,22 @@
     justify-content: stretch;
   }
 
+  .photo-page .photo-browser--phone-landscape {
+    display: grid;
+    grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+    gap: 16px;
+    align-items: stretch;
+    min-height: calc(100dvh - 120px);
+    overflow: hidden;
+  }
+
   .photo-page .photo-album-rail {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .photo-page .photo-album-rail--phone-landscape {
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
   }
@@ -816,8 +830,29 @@
     padding: 8px 12px 8px 4px;
   }
 
+  .photo-page .photo-album-rail--phone-landscape .photo-album-scroll {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 8px;
+  }
+
   .photo-page .photo-album-stacks {
     gap: 28px;
+  }
+
+  .photo-page .photo-browser--phone-landscape .photo-album-stacks {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .photo-page .photo-album-stack-item {
+    cursor: pointer;
+  }
+
+  .photo-page .photo-album-stack-item .album-stack {
+    width: 100%;
   }
 
   .photo-page .album-stack {
@@ -834,6 +869,12 @@
     display: flex;
     align-items: center;
     min-height: 0;
+  }
+
+  .photo-page .photo-album-description--phone-landscape {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .photo-page .album-description-panel {
@@ -961,5 +1002,46 @@
   .photo-page .photo-mobile-shot-copy {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 1120px) and (orientation: landscape) {
+  .photo-page .photo-browser.photo-browser--phone-landscape {
+    display: grid;
+    grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+    gap: 16px;
+    align-items: stretch;
+    min-height: calc(100dvh - 120px);
+    overflow: hidden;
+  }
+
+  .photo-page .photo-browser.photo-browser--phone-landscape .photo-album-rail--phone-landscape {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .photo-page .photo-browser.photo-browser--phone-landscape .photo-album-scroll {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 8px;
+  }
+
+  .photo-page .photo-browser.photo-browser--phone-landscape .photo-album-stacks {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .photo-page .photo-browser.photo-browser--phone-landscape .photo-album-stack-item {
+    display: block;
+    cursor: pointer;
+  }
+
+  .photo-page .photo-browser.photo-browser--phone-landscape .photo-album-description--phone-landscape {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
   }
 }

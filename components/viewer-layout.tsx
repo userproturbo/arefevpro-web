@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type TouchEvent } from "react";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
 import { AlbumMobileSlider } from "@/components/photo/album-mobile-slider";
 import { AlbumDescriptionPanel } from "@/components/photo/album-description-panel";
 import { AlbumStack, getPhotoCaption } from "@/components/photo/album-stack";
@@ -254,44 +254,6 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     }
   }
 
-  const photoBrowserStyle: CSSProperties | undefined = isPhoneLandscapeAlbumBrowser
-    ? {
-        display: "grid",
-        gridTemplateColumns: "minmax(220px, 320px) minmax(0, 1fr)",
-        gap: "16px",
-        alignItems: "stretch",
-        overflow: "hidden",
-        minHeight: "calc(100dvh - 120px)",
-      }
-    : undefined;
-
-  const photoAlbumRailStyle: CSSProperties | undefined = isPhoneLandscapeAlbumBrowser
-    ? {
-        minWidth: 0,
-        height: "100%",
-        overflow: "hidden",
-      }
-    : undefined;
-
-  const photoAlbumScrollStyle: CSSProperties | undefined = isPhoneLandscapeAlbumBrowser
-    ? {
-        height: "100%",
-        overflowY: "auto",
-        overflowX: "hidden",
-        paddingRight: "4px",
-      }
-    : undefined;
-
-  const photoAlbumDescriptionStyle: CSSProperties | undefined = isPhoneLandscapeAlbumBrowser
-    ? {
-        minWidth: 0,
-        height: "100%",
-        overflowY: "auto",
-        overflowX: "hidden",
-        alignSelf: "stretch",
-      }
-    : undefined;
-
   return (
     <main
       className={`viewer-page ${isImmersiveViewer ? "viewer-page--immersive" : ""} ${
@@ -340,21 +302,41 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
               onOpenAlbum={openAlbum}
             />
           </div>
+        ) : isPhoneLandscapeAlbumBrowser ? (
+          <div className="photo-browser photo-browser--phone-landscape">
+            <aside className="photo-album-rail photo-album-rail--phone-landscape">
+              <div className="photo-album-scroll">
+                <div className="photo-album-stacks">
+                  {page.albums.length > 0 ? (
+                    page.albums.map((album) => (
+                      <div
+                        key={album.id}
+                        className="photo-album-stack-item"
+                        onClick={() => handleAlbumStackClick(album.id)}
+                      >
+                        <AlbumStack
+                          album={album}
+                          isActive={activeAlbum?.id === album.id}
+                          onClick={() => undefined}
+                          onHover={() => undefined}
+                        />
+                      </div>
+                    ))
+                  ) : (
+                    <div className="viewer-empty-block">В этом разделе пока нет альбомов.</div>
+                  )}
+                </div>
+              </div>
+            </aside>
+
+            <section className="photo-album-description photo-album-description--phone-landscape">
+              <AlbumDescriptionPanel album={activeAlbum} />
+            </section>
+          </div>
         ) : (
-          <div
-            className={`photo-browser ${isPhoneLandscapeAlbumBrowser ? "photo-browser--phone-landscape" : ""}`}
-            style={photoBrowserStyle}
-          >
-            <aside
-              className={`photo-album-rail ${isPhoneLandscapeAlbumBrowser ? "photo-album-rail--phone-landscape" : ""}`}
-              style={photoAlbumRailStyle}
-            >
-              <div
-                className={`photo-album-scroll ${
-                  isPhoneLandscapeAlbumBrowser ? "photo-album-scroll--phone-landscape" : ""
-                }`}
-                style={photoAlbumScrollStyle}
-              >
+          <div className="photo-browser">
+            <aside className="photo-album-rail">
+              <div className="photo-album-scroll">
                 <div className="photo-album-stacks">
                   {page.albums.length > 0 ? (
                     page.albums.map((album) => (
@@ -373,12 +355,7 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
               </div>
             </aside>
 
-            <section
-              className={`photo-album-description ${
-                isPhoneLandscapeAlbumBrowser ? "photo-album-description--phone-landscape" : ""
-              }`}
-              style={photoAlbumDescriptionStyle}
-            >
+            <section className="photo-album-description">
               <AlbumDescriptionPanel album={activeAlbum} />
             </section>
           </div>
