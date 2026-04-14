@@ -69,10 +69,7 @@ export function HomeHero({ videos }: HomeHeroProps) {
             className="hero-fallback"
             style={{
               backgroundImage:
-                "linear-gradient(rgba(5, 5, 5, 0.3), rgba(5, 5, 5, 0.6)), url('/img/photo.png')",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "cover",
+                "radial-gradient(circle at 18% 20%, rgba(216, 194, 157, 0.16), transparent 26%), linear-gradient(135deg, rgba(8, 8, 8, 0.96), rgba(20, 20, 20, 0.96))",
             }}
           />
         )}

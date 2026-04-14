@@ -888,7 +888,7 @@ function getAlbumCardPreview(sectionType: SectionPageData["section"]["type"], al
 
   return {
     kind: "image" as const,
-    src: album.photos?.[0]?.thumbnailUrl ?? album.photos?.[0]?.imageUrl ?? "/img/photo.png",
+    src: album.photos?.[0]?.thumbnailUrl ?? album.photos?.[0]?.imageUrl ?? null,
   };
 }
 

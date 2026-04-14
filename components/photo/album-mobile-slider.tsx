@@ -113,7 +113,7 @@ export function AlbumMobileSlider({
       <div ref={sliderRef} className="photo-mobile-slider" aria-label="Photo albums">
         {albums.map((album) => {
           const stackImages = Array.from({ length: 3 }, (_, index) => {
-            return album.photos?.[index]?.thumbnailUrl ?? album.photos?.[index]?.imageUrl ?? "/img/photo.png";
+            return album.photos?.[index]?.thumbnailUrl ?? album.photos?.[index]?.imageUrl ?? null;
           });
           const isActive = album.id === activeAlbum?.id;
 
@@ -142,7 +142,11 @@ export function AlbumMobileSlider({
               <span className="photo-mobile-stack" aria-hidden="true">
                 {stackImages.map((image, index) => (
                   <span key={`${album.id}-${index}`} className={`photo-mobile-stack-layer layer-${index + 1}`}>
-                    <img src={image} alt="" loading="lazy" decoding="async" />
+                    {image ? (
+                      <img src={image} alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      <span className="photo-mobile-stack-fallback" />
+                    )}
                   </span>
                 ))}
               </span>

@@ -206,6 +206,12 @@
   pointer-events: none;
 }
 
+.photo-page .album-stack-image--fallback {
+  background:
+    radial-gradient(circle at 22% 20%, rgba(216, 194, 157, 0.2), transparent 26%),
+    linear-gradient(135deg, #111 0%, #222 100%);
+}
+
 .photo-page .album-stack:hover .album-stack-layer,
 .photo-page .album-stack:focus-visible .album-stack-layer,
 .photo-page .album-stack.is-active .album-stack-layer {
@@ -362,6 +368,16 @@
   height: 100%;
   border-radius: 9px;
   object-fit: cover;
+}
+
+.photo-page .photo-mobile-stack-fallback {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9px;
+  background:
+    radial-gradient(circle at 22% 20%, rgba(216, 194, 157, 0.2), transparent 26%),
+    linear-gradient(135deg, #111 0%, #222 100%);
 }
 
 .photo-page .photo-mobile-stack-layer.layer-1 {

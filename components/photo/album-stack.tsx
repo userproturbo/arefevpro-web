@@ -30,7 +30,7 @@ export function AlbumStack({ album, isActive = false, onClick, onHover }: AlbumS
     .map((photo) => photo.thumbnailUrl ?? photo.imageUrl)
     .filter(Boolean);
   const stackImages = Array.from({ length: Math.max(Math.min(previewImages.length, 3), 3) }, (_, index) => {
-    return previewImages[index] ?? previewImages[0] ?? "/img/photo.png";
+    return previewImages[index] ?? previewImages[0] ?? null;
   });
 
   return (
@@ -49,13 +49,17 @@ export function AlbumStack({ album, isActive = false, onClick, onHover }: AlbumS
             style={{ ["--stack-index" as string]: index } as CSSProperties}
           >
             <div className="album-stack-frame">
-              <img
-                className="album-stack-image"
-                src={image}
-                alt=""
-                loading={index === 0 ? "eager" : "lazy"}
-                decoding="async"
-              />
+              {image ? (
+                <img
+                  className="album-stack-image"
+                  src={image}
+                  alt=""
+                  loading={index === 0 ? "eager" : "lazy"}
+                  decoding="async"
+                />
+              ) : (
+                <div className="album-stack-image album-stack-image--fallback" />
+              )}
             </div>
           </div>
         ))}
