@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { AlbumMobileSlider } from "@/components/photo/album-mobile-slider";
 import { AlbumDescriptionPanel } from "@/components/photo/album-description-panel";
 import { AlbumStack, getPhotoCaption } from "@/components/photo/album-stack";
@@ -30,16 +30,25 @@ type ViewerPhoto = Extract<ViewerMedia, { kind: "PHOTO" }>;
 export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProps) {
   const isPhotoSection = page.section.type === "PHOTO";
   const isVideoSection = page.section.type === "VIDEO";
-  const [isMobile, setIsMobile] = useState(false);
+
+  const [viewportMode, setViewportMode] = useState({
+    isPhonePortrait: false,
+    isPhoneLandscape: false,
+    isTabletPortrait: false,
+  });
+
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(
     page.albums.find((album) => album.slug === initialAlbumSlug)?.id ?? null,
   );
+
   const [activeAlbumId, setActiveAlbumId] = useState<string | null>(
     page.albums.find((album) => album.slug === initialAlbumSlug)?.id ?? page.albums[0]?.id ?? null,
   );
+
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [hoveredVideoId, setHoveredVideoId] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
   const previewRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const touchStartX = useRef(0);
 
@@ -53,20 +62,41 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
   const previewAlbum = selectedAlbum ?? page.albums[0] ?? null;
   const isAlbumOpen = Boolean(selectedAlbumId);
   const previewVisual = getAlbumStageVisual(page.section.type, activeAlbum);
-  const isImmersiveViewer = isVideoSection || (isPhotoSection && !isMobile);
+
+  const useCompactPhotoLayout = viewportMode.isPhonePortrait || viewportMode.isTabletPortrait;
+  const isPhoneLandscapeAlbumBrowser =
+    isPhotoSection && viewportMode.isPhoneLandscape && !isAlbumOpen;
+
+  const isImmersiveViewer = isVideoSection || (isPhotoSection && !useCompactPhotoLayout);
 
   useEffect(() => {
     function syncViewport() {
-      const isPhone = window.innerWidth < 768;
-      const isTabletPortrait = window.innerWidth <= 1024 && window.innerHeight > window.innerWidth;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const isPortrait = height >= width;
 
-      setIsMobile(isPhone || isTabletPortrait);
+      const isPhone = width < 768 || Math.min(width, height) < 768;
+      const isTablet = !isPhone && width >= 768 && width <= 1024;
+
+      const isPhonePortrait = isPhone && isPortrait;
+      const isPhoneLandscape = isPhone && !isPortrait;
+      const isTabletPortrait = isTablet && isPortrait;
+
+      setViewportMode({
+        isPhonePortrait,
+        isPhoneLandscape,
+        isTabletPortrait,
+      });
     }
 
     syncViewport();
     window.addEventListener("resize", syncViewport);
+    window.addEventListener("orientationchange", syncViewport);
 
-    return () => window.removeEventListener("resize", syncViewport);
+    return () => {
+      window.removeEventListener("resize", syncViewport);
+      window.removeEventListener("orientationchange", syncViewport);
+    };
   }, []);
 
   useEffect(() => {
@@ -224,6 +254,44 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     }
   }
 
+  const photoBrowserStyle: CSSProperties | undefined = isPhoneLandscapeAlbumBrowser
+    ? {
+        display: "grid",
+        gridTemplateColumns: "minmax(220px, 320px) minmax(0, 1fr)",
+        gap: "16px",
+        alignItems: "stretch",
+        overflow: "hidden",
+        minHeight: "calc(100dvh - 120px)",
+      }
+    : undefined;
+
+  const photoAlbumRailStyle: CSSProperties | undefined = isPhoneLandscapeAlbumBrowser
+    ? {
+        minWidth: 0,
+        height: "100%",
+        overflow: "hidden",
+      }
+    : undefined;
+
+  const photoAlbumScrollStyle: CSSProperties | undefined = isPhoneLandscapeAlbumBrowser
+    ? {
+        height: "100%",
+        overflowY: "auto",
+        overflowX: "hidden",
+        paddingRight: "4px",
+      }
+    : undefined;
+
+  const photoAlbumDescriptionStyle: CSSProperties | undefined = isPhoneLandscapeAlbumBrowser
+    ? {
+        minWidth: 0,
+        height: "100%",
+        overflowY: "auto",
+        overflowX: "hidden",
+        alignSelf: "stretch",
+      }
+    : undefined;
+
   return (
     <main
       className={`viewer-page ${isImmersiveViewer ? "viewer-page--immersive" : ""} ${
@@ -234,7 +302,7 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
 
       {isPhotoSection ? (
         isAlbumOpen ? (
-          isMobile ? (
+          useCompactPhotoLayout ? (
             <div className="photo-mobile-album-page">
               <PhotoMobileAlbumView
                 album={selectedAlbum}
@@ -263,7 +331,7 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
               />
             </div>
           )
-        ) : isMobile ? (
+        ) : useCompactPhotoLayout ? (
           <div className="photo-mobile-page">
             <AlbumMobileSlider
               albums={page.albums}
@@ -273,9 +341,20 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
             />
           </div>
         ) : (
-          <div className="photo-browser">
-            <aside className="photo-album-rail">
-              <div className="photo-album-scroll">
+          <div
+            className={`photo-browser ${isPhoneLandscapeAlbumBrowser ? "photo-browser--phone-landscape" : ""}`}
+            style={photoBrowserStyle}
+          >
+            <aside
+              className={`photo-album-rail ${isPhoneLandscapeAlbumBrowser ? "photo-album-rail--phone-landscape" : ""}`}
+              style={photoAlbumRailStyle}
+            >
+              <div
+                className={`photo-album-scroll ${
+                  isPhoneLandscapeAlbumBrowser ? "photo-album-scroll--phone-landscape" : ""
+                }`}
+                style={photoAlbumScrollStyle}
+              >
                 <div className="photo-album-stacks">
                   {page.albums.length > 0 ? (
                     page.albums.map((album) => (
@@ -294,7 +373,12 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
               </div>
             </aside>
 
-            <section className="photo-album-description">
+            <section
+              className={`photo-album-description ${
+                isPhoneLandscapeAlbumBrowser ? "photo-album-description--phone-landscape" : ""
+              }`}
+              style={photoAlbumDescriptionStyle}
+            >
               <AlbumDescriptionPanel album={activeAlbum} />
             </section>
           </div>
@@ -636,7 +720,9 @@ function PhotoMobileAlbumView({
               </div>
               <div className="photo-mobile-shot-copy">
                 <strong>{getPhotoCaption(photo)}</strong>
-                <span>{index + 1} / {photos.length}</span>
+                <span>
+                  {index + 1} / {photos.length}
+                </span>
               </div>
             </button>
           ))
