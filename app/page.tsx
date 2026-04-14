@@ -3,7 +3,7 @@ import "@/styles/home.css";
 import { HomeHero } from "@/components/home-hero";
 import { getFeaturedVideos } from "@/lib/services/media";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const featuredVideos = await getFeaturedVideos();
