@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type TouchEvent } from "react";
 import { AlbumMobileSlider } from "@/components/photo/album-mobile-slider";
 import { AlbumDescriptionPanel } from "@/components/photo/album-description-panel";
 import { AlbumStack, getPhotoCaption } from "@/components/photo/album-stack";
+import { PhotoStackGrid } from "@/components/photo/photo-stack-grid";
 import { SiteNavigation } from "@/components/site-navigation";
 import type { PhotoListItem, VideoListItem } from "@/lib/services/albums";
 import type { SectionPageAlbum, SectionPageData } from "@/lib/services/sections";
@@ -353,15 +354,13 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
             <div className="photo-desktop-album-page">
               <PhotoDesktopAlbumView
                 album={selectedAlbum}
-                media={displayedPhoto}
-                photoCount={photoList.length}
-                currentIndex={currentIndex}
-                prevPhoto={getAdjacentPhoto(photoList, currentIndex, -1)}
-                nextPhoto={getAdjacentPhoto(photoList, currentIndex, 1)}
+                photos={photoList}
+                selectedMediaId={selectedMediaId}
                 onBack={closeAlbum}
-                onOpenLightbox={() => setLightboxOpen(true)}
-                onPrev={goPrev}
-                onNext={goNext}
+                onSelectPhoto={(photoId) => {
+                  setSelectedMediaId(photoId);
+                  setLightboxOpen(true);
+                }}
               />
             </div>
           )
@@ -623,26 +622,16 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
 
 function PhotoDesktopAlbumView({
   album,
-  media,
-  photoCount,
-  currentIndex,
-  prevPhoto,
-  nextPhoto,
+  photos,
+  selectedMediaId,
   onBack,
-  onOpenLightbox,
-  onPrev,
-  onNext,
+  onSelectPhoto,
 }: {
   album: SectionPageAlbum | null;
-  media: (PhotoListItem & { kind: "PHOTO"; url: string; previewUrl: string }) | null;
-  photoCount: number;
-  currentIndex: number;
-  prevPhoto: ViewerPhoto | null;
-  nextPhoto: ViewerPhoto | null;
+  photos: ViewerPhoto[];
+  selectedMediaId: string | null;
   onBack: () => void;
-  onOpenLightbox: () => void;
-  onPrev: () => void;
-  onNext: () => void;
+  onSelectPhoto: (photoId: string) => void;
 }) {
   return (
     <section className="photo-album-view">
@@ -651,71 +640,14 @@ function PhotoDesktopAlbumView({
           ← Back to albums
         </button>
 
-        <div className="photo-album-view-copy">
-          <p className="album-stage-kicker">Photo Album</p>
-          <h1>{album?.title ?? "Untitled album"}</h1>
-          <p>{album?.description ?? "A curated still-image sequence."}</p>
-        </div>
-
-        <div className="photo-album-view-meta">
-          <span>
-            {photoCount > 0 && currentIndex >= 0 ? `${currentIndex + 1} / ${photoCount}` : `0 / ${photoCount}`}
-          </span>
-          <span>{photoCount} frames</span>
-        </div>
+        <h1>{album?.title ?? "Untitled album"}</h1>
+        <p className="photo-album-view-subtitle">{album?.description ?? "A curated still-image sequence."}</p>
       </header>
 
-      {media ? (
-        <div className="photo-cinematic-viewer">
-          <button type="button" className="photo-viewer-arrow photo-viewer-arrow--left" onClick={onPrev}>
-            <span>‹</span>
-          </button>
-
-          <div className="photo-cinematic-stage">
-            {prevPhoto ? (
-              <button type="button" className="photo-cinematic-card is-side is-prev" onClick={onPrev}>
-                <img
-                  src={prevPhoto.previewUrl}
-                  alt={getPhotoCaption(prevPhoto)}
-                  loading="lazy"
-                  decoding="async"
-                  sizes="20vw"
-                />
-              </button>
-            ) : (
-              <div className="photo-cinematic-card is-side is-empty" aria-hidden="true" />
-            )}
-
-            <button type="button" className="photo-cinematic-card is-active" onClick={onOpenLightbox}>
-              <img src={media.url} alt={getPhotoCaption(media)} loading="eager" decoding="async" sizes="60vw" />
-              <div className="photo-cinematic-caption">
-                <strong>{getPhotoCaption(media)}</strong>
-                <span>Tap or click for fullscreen</span>
-              </div>
-            </button>
-
-            {nextPhoto ? (
-              <button type="button" className="photo-cinematic-card is-side is-next" onClick={onNext}>
-                <img
-                  src={nextPhoto.previewUrl}
-                  alt={getPhotoCaption(nextPhoto)}
-                  loading="lazy"
-                  decoding="async"
-                  sizes="20vw"
-                />
-              </button>
-            ) : (
-              <div className="photo-cinematic-card is-side is-empty" aria-hidden="true" />
-            )}
-          </div>
-
-          <button type="button" className="photo-viewer-arrow photo-viewer-arrow--right" onClick={onNext}>
-            <span>›</span>
-          </button>
-        </div>
+      {photos.length > 0 ? (
+        <PhotoStackGrid photos={photos} activePhotoId={selectedMediaId} onSelectPhoto={onSelectPhoto} />
       ) : (
         <div className="album-stage-empty">
-          <p className="album-stage-kicker">Photo album</p>
           <h2>В этом альбоме пока нет опубликованных фотографий.</h2>
         </div>
       )}
@@ -740,46 +672,14 @@ function PhotoMobileAlbumView({
     <section className="photo-mobile-album">
       <header className="photo-mobile-album-head">
         <button type="button" className="photo-back-button" onClick={onBack}>
-          ← Albums
+          ← Back to albums
         </button>
 
-        <div className="photo-mobile-album-copy">
-          <p className="album-stage-kicker">Photo Album</p>
-          <h1>{album?.title ?? "Untitled album"}</h1>
-          <p>{album?.description ?? "A curated still-image sequence."}</p>
-        </div>
+        <h1>{album?.title ?? "Untitled album"}</h1>
+        <p className="photo-album-view-subtitle">{album?.description ?? "A curated still-image sequence."}</p>
       </header>
 
-      <div className="photo-mobile-feed">
-        {photos.length > 0 ? (
-          photos.map((photo, index) => (
-            <button
-              key={photo.id}
-              type="button"
-              className={`photo-mobile-shot ${selectedMediaId === photo.id ? "is-active" : ""}`}
-              onClick={() => onSelectPhoto(photo.id)}
-            >
-              <div className="photo-mobile-shot-media">
-                <img
-                  src={photo.url}
-                  alt={getPhotoCaption(photo)}
-                  loading={index < 2 ? "eager" : "lazy"}
-                  decoding="async"
-                  sizes="100vw"
-                />
-              </div>
-              <div className="photo-mobile-shot-copy">
-                <strong>{getPhotoCaption(photo)}</strong>
-                <span>
-                  {index + 1} / {photos.length}
-                </span>
-              </div>
-            </button>
-          ))
-        ) : (
-          <div className="viewer-empty-block">В этом альбоме пока нет опубликованных фотографий.</div>
-        )}
-      </div>
+      <PhotoStackGrid photos={photos} activePhotoId={selectedMediaId} onSelectPhoto={onSelectPhoto} />
     </section>
   );
 }
