@@ -93,7 +93,7 @@ export function SectionShell({ page }: SectionShellProps) {
         <div className="viewer-content">
           <div className="viewer-content-inner">
             <Link href="/" className="viewer-kicker">
-              Arefev Portfolio
+              AREFEVPRO
             </Link>
             <h1>{headingTitle}</h1>
             <p>{description}</p>

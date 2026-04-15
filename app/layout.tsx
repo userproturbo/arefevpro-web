@@ -1,12 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { AudioPlayerProvider } from "@/components/audio-player";
 import "@/styles/tokens.css";
 import "@/styles/base.css";
 import "@/styles/layout.css";
 
 export const metadata: Metadata = {
-  title: "Arefev Portfolio",
+  title: "AREFEVPRO",
   description: "Cinematic portfolio and media CMS",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 type RootLayoutProps = Readonly<{

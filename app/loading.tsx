@@ -3,7 +3,7 @@ export default function Loading() {
     <div
       style={{
         background: "#000",
-        height: "100vh",
+        height: "100dvh",
         width: "100%",
       }}
     />

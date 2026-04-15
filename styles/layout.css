@@ -4,6 +4,7 @@
   left: 0;
   z-index: 9999;
   width: 100%;
+  max-width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -76,14 +77,21 @@
 .viewer-page {
   position: relative;
   z-index: 10;
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: transparent;
+  overflow-x: hidden;
 }
 
 .viewer-page--immersive {
+  min-height: 100vh;
+  min-height: 100dvh;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -98,6 +106,7 @@
   min-height: 0;
   margin-top: 60px;
   height: calc(100vh - 156px);
+  height: calc(100dvh - 156px);
 }
 
 .viewer-shell {
@@ -106,8 +115,12 @@
   gap: 20px;
   flex: 1;
   min-height: calc(100vh - 60px);
+  min-height: calc(100dvh - 60px);
   padding: 16px 20px 20px;
   margin-top: 60px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .viewer-shell--immersive {
@@ -257,6 +270,7 @@
 .viewer-stage--preview,
 .viewer-stage--media {
   min-height: calc(100vh - 136px);
+  min-height: calc(100dvh - 136px);
 }
 
 .viewer-stage--media {
