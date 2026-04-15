@@ -30,13 +30,14 @@ type ViewerPhoto = Extract<ViewerMedia, { kind: "PHOTO" }>;
 export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProps) {
   const isPhotoSection = page.section.type === "PHOTO";
   const isVideoSection = page.section.type === "VIDEO";
+  const touchSelectionSyncRef = useRef(false);
 
   const [viewportMode, setViewportMode] = useState({
+    canHover: false,
     isPhonePortrait: false,
     isPhoneLandscape: false,
     isTabletPortrait: false,
   });
-  const [canHover, setCanHover] = useState(false);
 
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(
     page.albums.find((album) => album.slug === initialAlbumSlug)?.id ?? null,
@@ -45,6 +46,7 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
   const [activeAlbumId, setActiveAlbumId] = useState<string | null>(
     page.albums.find((album) => album.slug === initialAlbumSlug)?.id ?? page.albums[0]?.id ?? null,
   );
+  const [lastTappedAlbumId, setLastTappedAlbumId] = useState<string | null>(null);
 
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [hoveredVideoId, setHoveredVideoId] = useState<string | null>(null);
@@ -74,7 +76,10 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
 
     const syncHoverCapability = () => {
-      setCanHover(mediaQuery.matches);
+      setViewportMode((current) => ({
+        ...current,
+        canHover: mediaQuery.matches,
+      }));
     };
 
     syncHoverCapability();
@@ -96,11 +101,12 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
       const isPhoneLandscape = isPhone && !isPortrait;
       const isTabletPortrait = isTablet && isPortrait;
 
-      setViewportMode({
+      setViewportMode((current) => ({
+        ...current,
         isPhonePortrait,
         isPhoneLandscape,
         isTabletPortrait,
-      });
+      }));
     }
 
     syncViewport();
@@ -214,8 +220,30 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     return () => window.removeEventListener("keydown", handleLightboxKey);
   }, [lightboxOpen, currentIndex, photoList]);
 
+  useEffect(() => {
+    if (viewportMode.canHover || useCompactPhotoLayout || isAlbumOpen) {
+      setLastTappedAlbumId(null);
+    }
+  }, [isAlbumOpen, useCompactPhotoLayout, viewportMode.canHover]);
+
+  useEffect(() => {
+    if (viewportMode.canHover) {
+      setLastTappedAlbumId(null);
+    }
+  }, [viewportMode.canHover]);
+
+  useEffect(() => {
+    if (touchSelectionSyncRef.current) {
+      touchSelectionSyncRef.current = false;
+      return;
+    }
+
+    setLastTappedAlbumId(null);
+  }, [activeAlbumId]);
+
   function openAlbum(albumId: string) {
     setActiveAlbumId(albumId);
+    setLastTappedAlbumId(null);
     setSelectedAlbumId(albumId);
   }
 
@@ -224,36 +252,41 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
   }
 
   function handleAlbumStackHover(albumId: string) {
-    if (!canHover) {
+    if (!viewportMode.canHover) {
       return;
     }
 
+    setLastTappedAlbumId(null);
     setPreviewAlbum(albumId);
   }
 
   function handleAlbumStackFocus(albumId: string) {
-    if (!canHover) {
+    if (!viewportMode.canHover) {
       return;
     }
 
+    setLastTappedAlbumId(null);
     setPreviewAlbum(albumId);
   }
 
   function handleAlbumStackClick(albumId: string) {
-    if (canHover) {
+    if (viewportMode.canHover) {
       openAlbum(albumId);
       return;
     }
 
-    if (activeAlbumId === albumId) {
+    if (lastTappedAlbumId === albumId) {
       openAlbum(albumId);
       return;
     }
 
-    setPreviewAlbum(albumId);
+    touchSelectionSyncRef.current = true;
+    setActiveAlbumId(albumId);
+    setLastTappedAlbumId(albumId);
   }
 
   function closeAlbum() {
+    setLastTappedAlbumId(null);
     setSelectedAlbumId(null);
     setHoveredVideoId(null);
     setLightboxOpen(false);
