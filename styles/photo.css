@@ -782,6 +782,22 @@
   }
 }
 
+@media (min-width: 768px) and (max-width: 1100px) {
+  .photo-page .photo-browser {
+    grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+    gap: 32px;
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 16px 24px 24px;
+    overflow-y: visible;
+  }
+
+  .photo-page .album-description-panel {
+    max-width: 100%;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .photo-page .album-stack:hover .album-stack-visual,
   .photo-page .album-stack:focus-visible .album-stack-visual,
