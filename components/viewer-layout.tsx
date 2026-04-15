@@ -36,6 +36,7 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     isPhoneLandscape: false,
     isTabletPortrait: false,
   });
+  const [canHover, setCanHover] = useState(false);
 
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(
     page.albums.find((album) => album.slug === initialAlbumSlug)?.id ?? null,
@@ -68,6 +69,19 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     isPhotoSection && viewportMode.isPhoneLandscape && !isAlbumOpen;
 
   const isImmersiveViewer = isVideoSection || (isPhotoSection && !useCompactPhotoLayout);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+
+    const syncHoverCapability = () => {
+      setCanHover(mediaQuery.matches);
+    };
+
+    syncHoverCapability();
+    mediaQuery.addEventListener("change", syncHoverCapability);
+
+    return () => mediaQuery.removeEventListener("change", syncHoverCapability);
+  }, []);
 
   useEffect(() => {
     function syncViewport() {
@@ -200,27 +214,43 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
     return () => window.removeEventListener("keydown", handleLightboxKey);
   }, [lightboxOpen, currentIndex, photoList]);
 
-  useEffect(() => {
-    console.log("phone-landscape activeAlbum", activeAlbum);
-  }, [activeAlbum]);
-
   function openAlbum(albumId: string) {
     setActiveAlbumId(albumId);
     setSelectedAlbumId(albumId);
   }
 
+  function setPreviewAlbum(albumId: string) {
+    setActiveAlbumId(albumId);
+  }
+
+  function handleAlbumStackHover(albumId: string) {
+    if (!canHover) {
+      return;
+    }
+
+    setPreviewAlbum(albumId);
+  }
+
+  function handleAlbumStackFocus(albumId: string) {
+    if (!canHover) {
+      return;
+    }
+
+    setPreviewAlbum(albumId);
+  }
+
   function handleAlbumStackClick(albumId: string) {
-    console.log("handleAlbumStackClick", {
-      clickedAlbumId: albumId,
-      activeAlbumIdBefore: activeAlbumId,
-    });
+    if (canHover) {
+      openAlbum(albumId);
+      return;
+    }
 
     if (activeAlbumId === albumId) {
       openAlbum(albumId);
       return;
     }
 
-    setActiveAlbumId(albumId);
+    setPreviewAlbum(albumId);
   }
 
   function closeAlbum() {
@@ -326,7 +356,8 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
                           album={album}
                           isActive={activeAlbum?.id === album.id}
                           onClick={() => handleAlbumStackClick(album.id)}
-                          onHover={() => undefined}
+                          onHover={() => handleAlbumStackHover(album.id)}
+                          onFocus={() => handleAlbumStackFocus(album.id)}
                         />
                       </div>
                     ))
@@ -353,7 +384,8 @@ export function ViewerLayout({ page, initialAlbumSlug = null }: ViewerLayoutProp
                         album={album}
                         isActive={activeAlbum?.id === album.id}
                         onClick={() => handleAlbumStackClick(album.id)}
-                        onHover={() => setActiveAlbumId(album.id)}
+                        onHover={() => handleAlbumStackHover(album.id)}
+                        onFocus={() => handleAlbumStackFocus(album.id)}
                       />
                     ))
                   ) : (

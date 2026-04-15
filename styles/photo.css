@@ -997,8 +997,26 @@
 
   .photo-page .album-stack:hover,
   .photo-page .album-stack:focus-visible,
-  .photo-page .album-stack.is-active {
+  .photo-page .album-stack:not(.is-active),
+  .photo-page .album-stack:not(.is-active):focus-visible,
+  .photo-page .album-stack:not(.is-active):hover {
     transform: none;
+  }
+
+  .photo-page .album-stack.is-active {
+    transform: translate3d(0, -2px, 0);
+  }
+
+  .photo-page .album-stack.is-active .album-stack-frame {
+    box-shadow:
+      0 14px 32px rgba(0, 0, 0, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  }
+
+  .photo-page .photo-album-stack-item.is-active .album-stack,
+  .photo-page .album-stack.is-active {
+    opacity: 1;
   }
 
   .photo-page .photo-mobile-slide.is-active {

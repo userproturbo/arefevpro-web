@@ -570,14 +570,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-let hasLoggedMusicClientKeys = false;
-
 function assertMusicPrismaClient() {
-  if (!hasLoggedMusicClientKeys) {
-    hasLoggedMusicClientKeys = true;
-    console.log(Object.keys(prisma));
-  }
-
   if (!("playlist" in prisma) || !prisma.playlist) {
     throw new Error("Prisma client missing Playlist model. Did you run prisma generate?");
   }

@@ -13,6 +13,7 @@ type AlbumStackProps = {
   isActive?: boolean;
   onClick: () => void;
   onHover?: () => void;
+  onFocus?: () => void;
 };
 
 export function getPhotoCaption(photo: PhotoCaptionSource) {
@@ -24,7 +25,7 @@ export function getPhotoCaption(photo: PhotoCaptionSource) {
   );
 }
 
-export function AlbumStack({ album, isActive = false, onClick, onHover }: AlbumStackProps) {
+export function AlbumStack({ album, isActive = false, onClick, onHover, onFocus }: AlbumStackProps) {
   const previewPhotos = album.photos?.slice(0, 3) ?? [];
   const previewImages = previewPhotos
     .map((photo) => photo.thumbnailUrl ?? photo.imageUrl)
@@ -39,7 +40,7 @@ export function AlbumStack({ album, isActive = false, onClick, onHover }: AlbumS
       className={`album-stack ${isActive ? "is-active" : ""}`}
       onClick={onClick}
       onMouseEnter={onHover}
-      onFocus={onHover}
+      onFocus={onFocus}
     >
       <div className="album-stack-visual" aria-hidden="true">
         {stackImages.map((image, index) => (
